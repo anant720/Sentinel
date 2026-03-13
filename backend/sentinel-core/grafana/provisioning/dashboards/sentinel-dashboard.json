@@ -1,0 +1,77 @@
+{
+    "title": "Sentinel Core Overview",
+    "uid": "sentinel-core-01",
+    "tags": [
+        "sentinel",
+        "production"
+    ],
+    "timezone": "browser",
+    "refresh": "5s",
+    "panels": [
+        {
+            "title": "Ingestion Rate (Events/sec)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "rate(sentinel_http_request_duration_seconds_count{method=\"POST\", route=\"/events/ingest\"}[1m])",
+                    "legendFormat": "Ingestion RPS"
+                }
+            ]
+        },
+        {
+            "title": "API Error Rate (5xx)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "rate(sentinel_http_request_duration_seconds_count{status=~\"5.*\"}[1m])",
+                    "legendFormat": "5xx Count"
+                }
+            ]
+        },
+        {
+            "title": "Rate Limit Actions (429 Drops / sec)",
+            "type": "stat",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(sentinel_rate_limit_triggers_total[1m]))",
+                    "legendFormat": "Total Dropped"
+                }
+            ]
+        },
+        {
+            "title": "Event Node JS Heap Memory",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "nodejs_heap_size_used_bytes",
+                    "legendFormat": "Heap Size"
+                }
+            ]
+        }
+    ],
+    "schemaVersion": 38
+}

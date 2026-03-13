@@ -1,0 +1,104 @@
+/**
+ * src/services/ingestion.service.ts
+ * ───────────────────────────────────
+ * Event ingestion data layer.
+ *
+ * LIFECYCLE:
+ *   Validate → Hash → Insert (processed=false) → Enqueue (id + orgId only)
+ *
+ * RULES:
+ *  - Schema validation BEFORE any DB operation — invalid events are rejected
+ *  - Integrity hash covers deviceId + eventType + timestamp + payload string
+ *  - processed is always false at insert time — worker sets it to true
+ *  - Queue receives only (eventId, orgId) — never the full payload
+ *  - No detection logic here
+ *  - No crypto imports — all from security layer
+ */
+import { z } from 'zod';
+import { db } from '../lib/database.js';
+import { logger } from '../lib/logger.js';
+import { enqueueEvent } from '../queues/event.queue.js';
+import { computeIntegrityHash } from '../security/index.js';
+import { validateCanonicalEvent } from '../types/events.js';
+
+// ── Event Schema ─────────────────────────────────────────────────────────────
+
+/** Maximum JSONB payload size: 64 KB */
+const MAX_PAYLOAD_BYTES = 64 * 1024;
+
+export const IngestEventSchema = z.object({
+    event: z.object({
+        device_id: z.string().uuid('device_id must be a valid UUID'),
+        event_type: z.string().min(1, 'event_type must not be empty').max(100),
+        timestamp: z.number().int().positive('timestamp must be a positive Unix epoch ms'),
+        nonce: z.string().uuid('nonce must be a valid UUID'),
+        payload: z.record(z.unknown()).refine(
+            (p) => Buffer.byteLength(JSON.stringify(p)) <= MAX_PAYLOAD_BYTES,
+            { message: `Payload exceeds maximum size of ${MAX_PAYLOAD_BYTES} bytes` },
+        )
+    }),
+    signature: z.string().min(1),
+});
+
+export type IngestEventInput = z.infer<typeof IngestEventSchema>;
+
+// ── Service ──────────────────────────────────────────────────────────────────
+
+export class IngestionService {
+    /**
+     * Validate, hash, persist, and enqueue a single event.
+     *
+     * @param orgId     Always from req.orgId (JWT) — never from client body.
+     * @param rawInput  Unvalidated inbound data — validated here before use.
+     */
+    static async ingest(orgId: string, rawInput: unknown) {
+        // ── 1. Schema validation ──────────────────────────────────────────
+        const parsed = IngestEventSchema.safeParse(rawInput);
+        if (!parsed.success) {
+            throw Object.assign(new Error('Event schema validation failed'), {
+                statusCode: 400,
+                validationErrors: parsed.error.format(),
+            });
+        }
+
+        const { event, signature } = parsed.data;
+
+        // ── 2. Canonical contract validation ─────────────────────────────
+        // Reject unknown event types or malformed typed payloads
+        const contractCheck = validateCanonicalEvent(event.event_type, event.payload);
+        if (!contractCheck.valid) {
+            throw Object.assign(new Error('Event contract validation failed'), {
+                statusCode: 400,
+                validationErrors: contractCheck.errors,
+            });
+        }
+
+        // Hash binds all semantic fields — any mutation is detectable.
+        // We use the same canonical stringification locally.
+        const canonicalDict = Object.fromEntries(
+            Object.keys(event).sort().map(key => [key, (event as any)[key]])
+        );
+        const integrityHash = computeIntegrityHash(JSON.stringify(canonicalDict));
+
+        // ── 3. DB insert (processed = false always) ───────────────────────
+        const result = await db.query(
+            `INSERT INTO events
+                 (organization_id, device_id, event_type, payload, signature, integrity_hash, processed)
+             VALUES ($1, $2, $3, $4, $5, $6, false)
+             RETURNING id, created_at`,
+            [orgId, event.device_id, event.event_type, event.payload, signature, integrityHash],
+        );
+
+        const stored = result.rows[0];
+
+        logger.debug(
+            { eventId: stored.id, orgId, device_id: event.device_id, event_type: event.event_type },
+            'Event persisted',
+        );
+
+        // ── 4. Queue (id + orgId only — queue is a pointer, not a bus) ────
+        await enqueueEvent(stored.id, orgId);
+
+        return stored;
+    }
+}

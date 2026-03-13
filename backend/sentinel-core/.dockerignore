@@ -1,0 +1,12 @@
+# sentinel-core .dockerignore
+node_modules
+dist
+.env
+.env.*
+*.log
+coverage
+.git
+.gitignore
+scripts/
+docs/
+*.md

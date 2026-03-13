@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acme Corp — Employee Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --card: #1a1a26;
+            --border: rgba(255, 255, 255, 0.08);
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.3);
+            --text: #f1f5f9;
+            --muted: #64748b;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── LOGIN PAGE ── */
+        #login-page {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(ellipse at 30% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 60%),
+                var(--bg);
+            padding: 24px;
+        }
+
+        .login-box {
+            width: 100%;
+            max-width: 420px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 0 60px rgba(99, 102, 241, 0.08), 0 24px 48px rgba(0, 0, 0, 0.4);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            font-size: 20px;
+            box-shadow: 0 4px 16px var(--primary-glow);
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-sub {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        h2 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 28px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            margin-bottom: 16px;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 13px;
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            color: white;
+            box-shadow: 0 4px 20px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 28px var(--primary-glow);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .demo-hint {
+            margin-top: 20px;
+            padding: 12px 16px;
+            background: rgba(99, 102, 241, 0.06);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 10px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .demo-hint strong {
+            color: var(--text);
+        }
+
+        #toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            display: none;
+            animation: slideIn 0.3s ease;
+            z-index: 9999;
+            max-width: 320px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast-success {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #4ade80;
+        }
+
+        .toast-error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+
+        .toast-info {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #a5b4fc;
+        }
+
+        /* ── DASHBOARD PAGE ── */
+        #dashboard-page {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+        }
+
+        nav {
+            height: 60px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            flex-shrink: 0;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 800;
+            font-size: 16px;
+        }
+
+        .nav-logo-icon {
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            font-size: 14px;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .sentinel-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.25);
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #4ade80;
+            gap: 6px;
+        }
+
+        .sentinel-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        .user-pill {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 13px;
+        }
+
+        .avatar {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            display: grid;
+            place-items: center;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .btn-logout {
+            padding: 6px 14px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 8px;
+            color: #f87171;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+
+        .dashboard-body {
+            flex: 1;
+            padding: 40px 40px;
+            max-width: 1100px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .greeting {
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .greeting-sub {
+            color: var(--muted);
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        .stat-sub {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+        }
+
+        .panel-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .activity-meta {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .sentinel-info {
+            background: rgba(99, 102, 241, 0.06);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 10px;
+            padding: 16px;
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .sentinel-info strong {
+            color: #a5b4fc;
+        }
+
+        .log-entry {
+            font-family: monospace;
+            font-size: 11px;
+            padding: 6px 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            color: #94a3b8;
+            border-left: 3px solid;
+        }
+
+        .log-success {
+            border-color: var(--success);
+        }
+
+        .log-fail {
+            border-color: var(--danger);
+        }
+
+        .log-info {
+            border-color: var(--primary);
+        }
+
+        /* ── CONFIG PANEL ── */
+        .config-bar {
+            background: rgba(99, 102, 241, 0.06);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+            padding: 10px 32px;
+            font-size: 12px;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .config-bar strong {
+            color: #a5b4fc;
+        }
+
+        .config-input {
+            padding: 4px 10px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            color: var(--text);
+            font-family: monospace;
+            font-size: 11px;
+            width: 280px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="toast"></div>
+
+    <!-- ═══════════════════════════ LOGIN PAGE ═══════════════════════════ -->
+    <div id="login-page">
+        <div class="login-box">
+            <div class="logo">
+                <div class="logo-icon">🏢</div>
+                <div>
+                    <div class="logo-text">Acme Corp</div>
+                    <div class="logo-sub">Employee Portal</div>
+                </div>
+            </div>
+
+            <h2>Welcome back</h2>
+            <p class="subtitle">Sign in to access your workspace</p>
+
+            <div>
+                <label for="email">Email Address</label>
+                <input type="email" id="email" placeholder="you@acmecorp.com" value="alice@acmecorp.com" />
+
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Your password" value="password123" />
+
+                <button class="btn btn-primary" id="login-btn" onclick="handleLogin()">
+                    <span id="login-btn-text">Sign In</span>
+                </button>
+            </div>
+
+            <div class="demo-hint">
+                🔗 <strong>Sentinel Integration Active</strong><br />
+                Every login attempt is reported to your Sentinel security dashboard in real time.
+            </div>
+
+            <div
+                style="margin-top:16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius:10px; padding: 14px;">
+                <p
+                    style="font-size:11px; color:var(--muted); margin-bottom:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+                    Sentinel Config</p>
+                <label style="font-size:11px;">Sentinel API URL</label>
+                <input type="text" id="sentinel-url" class="config-input" style="width:100%; margin-bottom:8px;"
+                    value="http://localhost:3001" />
+                <label style="font-size:11px;">API Key</label>
+                <input type="text" id="api-key" class="config-input" style="width:100%;"
+                    placeholder="sk_sentinel_PLACEHOLDER" />
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════ DASHBOARD PAGE ═══════════════════════════ -->
+    <div id="dashboard-page">
+        <div class="config-bar">
+            <span>🛡️ <strong>Sentinel Active</strong> — All activity is being monitored</span>
+            <span>URL: <strong id="cfg-url-display">http://localhost:3001</strong></span>
+            <span id="sentinel-status-bar">⬤ Connected</span>
+        </div>
+
+        <nav>
+            <div class="nav-logo">
+                <div class="nav-logo-icon">🏢</div>
+                Acme Corp Portal
+            </div>
+            <div class="nav-right">
+                <div class="sentinel-badge">
+                    <div class="sentinel-dot"></div>
+                    Sentinel Monitoring
+                </div>
+                <div class="user-pill">
+                    <div class="avatar" id="user-avatar">A</div>
+                    <span id="user-name-display">Alice</span>
+                </div>
+                <button class="btn-logout" onclick="handleLogout()">Logout</button>
+            </div>
+        </nav>
+
+        <div class="dashboard-body">
+            <p class="greeting">Hello, <span id="greeting-name">Alice</span> 👋</p>
+            <p class="greeting-sub" id="greeting-time">Monday, 10 March 2026 · 00:24 IST</p>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">📅 Days Active</div>
+                    <div class="stat-value" style="color:#a5b4fc">247</div>
+                    <div class="stat-sub">Since Jan 2025</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">📋 Open Tasks</div>
+                    <div class="stat-value" style="color:#fbbf24">12</div>
+                    <div class="stat-sub">3 due today</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">👥 Team Members</div>
+                    <div class="stat-value" style="color:#22c55e">48</div>
+                    <div class="stat-sub">32 online now</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🔒 Security Score</div>
+                    <div class="stat-value" style="color:#22c55e">98</div>
+                    <div class="stat-sub">Excellent</div>
+                </div>
+            </div>
+
+            <div class="content-grid">
+                <!-- Sentinel Event Log -->
+                <div class="panel">
+                    <div class="panel-title">🛡️ Sentinel Events Sent (This Session)</div>
+                    <div id="sentinel-log">
+                        <div style="color:var(--muted); font-size:13px; padding: 8px 0;">Waiting for events...</div>
+                    </div>
+                    <div class="sentinel-info" style="margin-top:16px;">
+                        Every login, logout, and page action you take is being sent to <strong>Sentinel</strong> for
+                        security analysis. Your admins can see this in real time on the Sentinel dashboard.
+                    </div>
+                </div>
+
+                <!-- Activity Feed -->
+                <div class="panel">
+                    <div class="panel-title">📌 Recent Activity</div>
+                    <div class="activity-item">
+                        <div class="activity-dot" style="background:#6366f1"></div>
+                        <div>
+                            <div style="font-size:13px;">Updated Q1 Financial Report</div>
+                            <div class="activity-meta">2 hours ago · Finance</div>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-dot" style="background:#22c55e"></div>
+                        <div>
+                            <div style="font-size:13px;">Submitted leave request</div>
+                            <div class="activity-meta">Yesterday · HR Portal</div>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-dot" style="background:#f59e0b"></div>
+                        <div>
+                            <div style="font-size:13px;">Accessed payroll dashboard</div>
+                            <div class="activity-meta">2 days ago · Finance</div>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-dot" style="background:#6366f1"></div>
+                        <div>
+                            <div style="font-size:13px;">Team meeting notes added</div>
+                            <div class="activity-meta">3 days ago · Workspace</div>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-dot" style="background:#22c55e"></div>
+                        <div>
+                            <div style="font-size:13px;">Password changed</div>
+                            <div class="activity-meta">1 week ago · Security</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ════════════════════════════════════════════════
+        //  SENTINEL INTEGRATION — The core of this demo
+        // ════════════════════════════════════════════════
+
+        let currentUser = null;
+        let deviceId = crypto.randomUUID(); // Simulated device ID for this browser session
+
+        /**
+         * Sends a security event to Sentinel.
+         * This is the single function you'd call from any web app.
+         */
+        async function sendToSentinel(eventType, payload) {
+            const sentinelUrl = document.getElementById('sentinel-url').value.trim();
+            const apiKey = document.getElementById('api-key').value.trim();
+
+            if (!apiKey) {
+                addSentinelLog('⚠ No API key configured — event not sent', 'info');
+                return false;
+            }
+
+            try {
+                const response = await fetch(`${sentinelUrl}/events/ingest`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        device_id: null,            // null = no registered device (browser session)
+                        event_type: eventType,
+                        payload: {
+                            ...payload,
+                            ip_address: 'browser-client',
+                            user_agent: navigator.userAgent.slice(0, 80),
+                            timestamp: new Date().toISOString(),
+                        },
+                        signature: 'acme-web-portal',
+                        integrity_hash: 'acme-web-portal',
+                    }),
+                });
+
+                if (response.ok) {
+                    addSentinelLog(`✅ ${eventType} → Sentinel [200 OK]`, 'success');
+                    return true;
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    addSentinelLog(`❌ ${eventType} → Sentinel [${response.status}] ${err.message || ''}`, 'fail');
+                    return false;
+                }
+            } catch (e) {
+                addSentinelLog(`⚠ ${eventType} → Sentinel [NETWORK ERROR — is backend running?]`, 'fail');
+                return false;
+            }
+        }
+
+        function addSentinelLog(message, type) {
+            const log = document.getElementById('sentinel-log');
+            const existing = log.querySelector('[data-placeholder]');
+            if (existing) existing.remove();
+
+            const el = document.createElement('div');
+            el.className = `log-entry log-${type}`;
+            el.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.prepend(el);
+
+            // Keep only last 8 entries
+            while (log.children.length > 8) log.lastChild.remove();
+        }
+
+        // ════════════════════════════════════════════
+        // DEMO USERS (simulated — no real auth here)
+        // ════════════════════════════════════════════
+        const DEMO_USERS = {
+            'alice@acmecorp.com': { name: 'Alice Johnson', role: 'Finance Lead', password: 'password123' },
+            'bob@acmecorp.com': { name: 'Bob Carter', role: 'HR Manager', password: 'password123' },
+            'charlie@acmecorp.com': { name: 'Charlie Singh', role: 'Dev Engineer', password: 'password123' },
+            'diana@acmecorp.com': { name: 'Diana Patel', role: 'Security Analyst', password: 'password123' },
+        };
+
+        async function handleLogin() {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('login-btn');
+            const btnText = document.getElementById('login-btn-text');
+
+            btn.disabled = true;
+            btnText.textContent = 'Signing in...';
+
+            // Simulate network delay
+            await new Promise(r => setTimeout(r, 800));
+
+            const user = DEMO_USERS[email];
+
+            if (!user || user.password !== password) {
+                // ❌ FAILED LOGIN — report to Sentinel
+                await sendToSentinel('login_failure', { email, reason: 'invalid_credentials' });
+                showToast('Invalid email or password', 'error');
+                btn.disabled = false;
+                btnText.textContent = 'Sign In';
+                return;
+            }
+
+            // ✅ SUCCESS LOGIN — report to Sentinel
+            currentUser = { email, ...user };
+            await sendToSentinel('login_success', { email, user_name: user.name, role: user.role });
+
+            showToast(`Welcome back, ${user.name.split(' ')[0]}!`, 'success');
+            setTimeout(() => showDashboard(), 600);
+            btn.disabled = false;
+            btnText.textContent = 'Sign In';
+        }
+
+        async function handleLogout() {
+            // 🚪 LOGOUT — report to Sentinel
+            await sendToSentinel('logout', {
+                email: currentUser?.email,
+                user_name: currentUser?.name,
+                session_duration_minutes: Math.floor(Math.random() * 60) + 5,
+            });
+
+            showToast('Logged out successfully', 'info');
+            setTimeout(() => showLogin(), 600);
+        }
+
+        function showDashboard() {
+            document.getElementById('login-page').style.display = 'none';
+            document.getElementById('dashboard-page').style.display = 'flex';
+
+            const firstName = currentUser.name.split(' ')[0];
+            document.getElementById('greeting-name').textContent = firstName;
+            document.getElementById('user-name-display').textContent = firstName;
+            document.getElementById('user-avatar').textContent = firstName[0].toUpperCase();
+            document.getElementById('cfg-url-display').textContent = document.getElementById('sentinel-url').value;
+            document.getElementById('greeting-time').textContent =
+                new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) +
+                ' · ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' IST';
+
+            // Clear and seed the sentinel log
+            document.getElementById('sentinel-log').innerHTML = '<div data-placeholder style="color:var(--muted);font-size:13px;padding:8px 0;">Events will appear here...</div>';
+            addSentinelLog(`✅ login_success → Sentinel [sent]`, 'success');
+        }
+
+        function showLogin() {
+            document.getElementById('dashboard-page').style.display = 'none';
+            document.getElementById('login-page').style.display = 'flex';
+            currentUser = null;
+        }
+
+        // Toast helper
+        function showToast(message, type) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast-${type}`;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3500);
+        }
+
+        // Allow Enter key on login
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && document.getElementById('login-page').style.display !== 'none') {
+                handleLogin();
+            }
+        });
+
+        // ── Simulate multiple users logging in (demo mode) ──
+        // Remove this if you want only manual logins
+    </script>
+</body>
+
+</html>

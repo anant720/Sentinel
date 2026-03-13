@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acme Corp — Employee Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #07070f;
+            --surface: #0f0f1a;
+            --card: #14141f;
+            --card2: #1a1a2e;
+            --border: rgba(255, 255, 255, 0.07);
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --primary-glow: rgba(99, 102, 241, 0.25);
+            --text: #f0f0ff;
+            --muted: #5a6480;
+            --muted2: #7c88a8;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ─── SHARED ─── */
+        .hidden {
+            display: none !important;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 11px 20px;
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.18s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+            color: white;
+            box-shadow: 0 4px 20px var(--primary-glow);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 30px var(--primary-glow);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.12);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.22);
+        }
+
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--muted2);
+            border: 1px solid var(--border);
+        }
+
+        .btn-ghost:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* ─── Toast ─── */
+        #toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            padding: 13px 20px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            display: none;
+            animation: toastIn 0.3s ease;
+            max-width: 320px;
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateX(30px) scale(0.97);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .toast-success {
+            background: rgba(34, 197, 94, 0.14);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #4ade80;
+        }
+
+        .toast-error {
+            background: rgba(239, 68, 68, 0.14);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+
+        .toast-info {
+            background: rgba(99, 102, 241, 0.14);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #a5b4fc;
+        }
+
+        /* ═══════════════════════════════════════════
+           LOGIN PAGE
+        ═══════════════════════════════════════════ */
+        #page-login {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(ellipse 800px 600px at 20% 10%, rgba(99, 102, 241, 0.1) 0%, transparent 70%),
+                radial-gradient(ellipse 600px 500px at 80% 80%, rgba(139, 92, 246, 0.07) 0%, transparent 70%),
+                var(--bg);
+            padding: 24px;
+        }
+
+        .login-container {
+            display: flex;
+            gap: 60px;
+            align-items: center;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .login-left {
+            flex: 1;
+            display: none;
+        }
+
+        @media (min-width: 780px) {
+            .login-left {
+                display: block;
+            }
+        }
+
+        .login-left h1 {
+            font-size: 42px;
+            font-weight: 900;
+            line-height: 1.15;
+            letter-spacing: -1.5px;
+            margin-bottom: 16px;
+        }
+
+        .login-left h1 span {
+            background: linear-gradient(135deg, var(--primary-light), #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .login-left p {
+            color: var(--muted2);
+            line-height: 1.7;
+            font-size: 15px;
+            margin-bottom: 28px;
+        }
+
+        .feature-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .feature {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: var(--muted2);
+        }
+
+        .feature-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .login-box {
+            width: 100%;
+            max-width: 400px;
+            flex-shrink: 0;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 36px;
+            box-shadow: 0 0 80px rgba(99, 102, 241, 0.06), 0 32px 64px rgba(0, 0, 0, 0.5);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+
+        .brand-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 13px;
+            background: linear-gradient(135deg, var(--primary), #7c3aed);
+            display: grid;
+            place-items: center;
+            font-size: 22px;
+            box-shadow: 0 4px 20px var(--primary-glow);
+        }
+
+        .brand-name {
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        .brand-tag {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 7px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 11px 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.18s, box-shadow 0.18s;
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .form-input::placeholder {
+            color: var(--muted);
+        }
+
+        .login-title {
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .login-sub {
+            font-size: 13px;
+            color: var(--muted2);
+            margin-bottom: 24px;
+        }
+
+        .error-msg {
+            margin-top: 12px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .demo-accounts {
+            margin-top: 20px;
+            padding: 14px;
+            background: rgba(99, 102, 241, 0.05);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            border-radius: 12px;
+        }
+
+        .demo-accounts p {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .demo-account {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+
+        .demo-account:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .demo-account:last-child {
+            margin-bottom: 0;
+        }
+
+        .demo-avatar {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            display: grid;
+            place-items: center;
+            font-size: 9px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .demo-email {
+            font-size: 12px;
+            color: var(--muted2);
+        }
+
+        .demo-pass {
+            font-size: 10px;
+            color: var(--muted);
+            margin-left: auto;
+            font-family: monospace;
+        }
+
+        .sentinel-badge-login {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            padding: 10px 14px;
+            background: rgba(34, 197, 94, 0.05);
+            border: 1px solid rgba(34, 197, 94, 0.15);
+            border-radius: 10px;
+            font-size: 11px;
+            color: #4ade80;
+        }
+
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.35
+            }
+        }
+
+        /* ═══════════════════════════════════════════
+           DASHBOARD
+        ═══════════════════════════════════════════ */
+        #page-dashboard {
+            display: none;
+            min-height: 100vh;
+            flex-direction: column;
+        }
+
+        /* Nav */
+        .topnav {
+            height: 58px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 800;
+            font-size: 15px;
+        }
+
+        .nav-brand-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, var(--primary), #7c3aed);
+            display: grid;
+            place-items: center;
+            font-size: 15px;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sentinel-live {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            background: rgba(34, 197, 94, 0.08);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #4ade80;
+        }
+
+        .user-chip {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 5px 14px 5px 6px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .chip-avatar {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 10px;
+            font-weight: 800;
+        }
+
+        .btn-logout-small {
+            padding: 6px 14px;
+            font-size: 12px;
+        }
+
+        /* Layout */
+        .dash-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 220px;
+            flex-shrink: 0;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            padding: 20px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sidebar-section {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            padding: 0 10px;
+            margin: 12px 0 6px;
+        }
+
+        .sidebar-section:first-child {
+            margin-top: 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--muted2);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: rgba(99, 102, 241, 0.12);
+            color: var(--primary-light);
+            font-weight: 600;
+        }
+
+        .nav-icon {
+            font-size: 15px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 32px 36px;
+            overflow-y: auto;
+        }
+
+        /* Cards */
+        .page-title {
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .page-sub {
+            font-size: 13px;
+            color: var(--muted2);
+            margin-bottom: 28px;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+
+        .kpi-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px 20px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.18s;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at top left, var(--glow, transparent) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .kpi-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .kpi-val {
+            font-size: 30px;
+            font-weight: 900;
+            letter-spacing: -1px;
+        }
+
+        .kpi-sub {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 22px;
+        }
+
+        .panel-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Team list */
+        .team-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .team-item:last-child {
+            border-bottom: none;
+        }
+
+        .team-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            font-size: 12px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .team-name {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .team-role {
+            font-size: 11px;
+            color: var(--muted2);
+        }
+
+        .online-badge {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #4ade80;
+        }
+
+        .offline-badge {
+            margin-left: auto;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        /* Activity log */
+        .act-item {
+            display: flex;
+            gap: 12px;
+            padding: 9px 0;
+            border-bottom: 1px solid var(--border);
+            align-items: flex-start;
+        }
+
+        .act-item:last-child {
+            border-bottom: none;
+        }
+
+        .act-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .act-text {
+            font-size: 13px;
+        }
+
+        .act-time {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        /* Quick links */
+        .quick-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .quick-card {
+            background: var(--card2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.18s;
+        }
+
+        .quick-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+            background: rgba(99, 102, 241, 0.06);
+            transform: translateY(-1px);
+        }
+
+        .quick-icon {
+            font-size: 26px;
+            margin-bottom: 8px;
+        }
+
+        .quick-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted2);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="toast"></div>
+
+    <!-- ═══════════════════ LOGIN PAGE ═══════════════════ -->
+    <div id="page-login">
+        <div class="login-container">
+            <div class="login-left">
+                <h1>Your workspace,<br /><span>secured & smart.</span></h1>
+                <p>The Acme Corp Employee Portal gives you access to your tasks, team, payroll, and company tools — all
+                    in one place.</p>
+                <div class="feature-list">
+                    <div class="feature">
+                        <div class="feature-icon" style="background:rgba(99,102,241,0.12)">📋</div> Task management &
+                        project tracking
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon" style="background:rgba(34,197,94,0.12)">👥</div> Team directory &
+                        collaboration
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon" style="background:rgba(245,158,11,0.12)">💰</div> Payroll & leave
+                        management
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon" style="background:rgba(239,68,68,0.12)">🛡️</div> Enterprise-grade
+                        security monitoring
+                    </div>
+                </div>
+            </div>
+
+            <div class="login-box">
+                <div class="brand">
+                    <div class="brand-icon">🏢</div>
+                    <div>
+                        <div class="brand-name">Acme Corp</div>
+                        <div class="brand-tag">Employee Portal</div>
+                    </div>
+                </div>
+
+                <p class="login-title">Sign in to continue</p>
+                <p class="login-sub">Use your company email and password</p>
+
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input class="form-input" type="email" id="inp-email" placeholder="you@acmecorp.com"
+                        autocomplete="email" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input class="form-input" type="password" id="inp-password" placeholder="••••••••"
+                        autocomplete="current-password" />
+                </div>
+
+                <button class="btn btn-primary" id="btn-login" onclick="doLogin()" style="width:100%; margin-top:4px;">
+                    <span id="btn-login-text">Sign In</span>
+                </button>
+
+                <div class="error-msg hidden" id="login-error"></div>
+
+                <!-- Demo accounts -->
+                <div class="demo-accounts">
+                    <p>Quick demo accounts (click to fill)</p>
+                    <div class="demo-account" onclick="fillLogin('alice@acmecorp.com','Alice@123')">
+                        <div class="demo-avatar" style="background:#6366f1">AJ</div>
+                        <span class="demo-email">alice@acmecorp.com</span>
+                        <span class="demo-pass">Alice@123</span>
+                    </div>
+                    <div class="demo-account" onclick="fillLogin('bob@acmecorp.com','Bob@123')">
+                        <div class="demo-avatar" style="background:#22c55e">BC</div>
+                        <span class="demo-email">bob@acmecorp.com</span>
+                        <span class="demo-pass">Bob@123</span>
+                    </div>
+                    <div class="demo-account" onclick="fillLogin('charlie@acmecorp.com','Charlie@123')">
+                        <div class="demo-avatar" style="background:#f59e0b">CS</div>
+                        <span class="demo-email">charlie@acmecorp.com</span>
+                        <span class="demo-pass">Charlie@123</span>
+                    </div>
+                    <div class="demo-account" onclick="fillLogin('diana@acmecorp.com','Diana@123')">
+                        <div class="demo-avatar" style="background:#ef4444">DP</div>
+                        <span class="demo-email">diana@acmecorp.com</span>
+                        <span class="demo-pass">Diana@123</span>
+                    </div>
+                    <div class="demo-account" onclick="fillLogin('evan@acmecorp.com','Evan@123')">
+                        <div class="demo-avatar" style="background:#8b5cf6">EW</div>
+                        <span class="demo-email">evan@acmecorp.com</span>
+                        <span class="demo-pass">Evan@123</span>
+                    </div>
+                </div>
+
+                <div class="sentinel-badge-login">
+                    <div class="pulse-dot"></div>
+                    Security monitored by Sentinel
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════ DASHBOARD PAGE ═══════════════════ -->
+    <div id="page-dashboard" style="display:none; flex-direction: column; min-height:100vh;">
+        <!-- Top Nav -->
+        <nav class="topnav">
+            <div class="nav-brand">
+                <div class="nav-brand-icon">🏢</div>
+                Acme Corp
+            </div>
+            <div class="nav-right">
+                <div class="sentinel-live">
+                    <div class="pulse-dot"></div> Sentinel Active
+                </div>
+                <div class="user-chip">
+                    <div class="chip-avatar" id="nav-avatar" style="background:#6366f1">AJ</div>
+                    <span id="nav-name">Alice</span>
+                </div>
+                <button class="btn btn-danger btn-logout-small" onclick="doLogout()">Sign Out</button>
+            </div>
+        </nav>
+
+        <!-- Body -->
+        <div class="dash-layout">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">Workspace</div>
+                <div class="nav-item active"><span class="nav-icon">🏠</span> Home</div>
+                <div class="nav-item"><span class="nav-icon">📋</span> My Tasks</div>
+                <div class="nav-item"><span class="nav-icon">📁</span> Projects</div>
+                <div class="nav-item"><span class="nav-icon">📅</span> Calendar</div>
+
+                <div class="sidebar-section">Company</div>
+                <div class="nav-item"><span class="nav-icon">👥</span> Team Directory</div>
+                <div class="nav-item"><span class="nav-icon">💰</span> Payroll</div>
+                <div class="nav-item"><span class="nav-icon">🏖️</span> Leave Requests</div>
+                <div class="nav-item"><span class="nav-icon">📢</span> Announcements</div>
+
+                <div class="sidebar-section">Account</div>
+                <div class="nav-item"><span class="nav-icon">⚙️</span> Settings</div>
+                <div class="nav-item" onclick="doLogout()"><span class="nav-icon">🚪</span> Sign Out</div>
+            </aside>
+
+            <!-- Main -->
+            <main class="main-content">
+                <p class="page-title" id="dash-greeting">Good morning, Alice 👋</p>
+                <p class="page-sub" id="dash-date">Monday, 10 March 2026 · Finance Lead</p>
+
+                <!-- KPIs -->
+                <div class="kpi-grid">
+                    <div class="kpi-card" style="--glow:rgba(99,102,241,0.15)">
+                        <div class="kpi-label">📋 My Open Tasks</div>
+                        <div class="kpi-val" style="color:#818cf8">14</div>
+                        <div class="kpi-sub">4 due this week</div>
+                    </div>
+                    <div class="kpi-card" style="--glow:rgba(34,197,94,0.12)">
+                        <div class="kpi-label">✅ Completed</div>
+                        <div class="kpi-val" style="color:#4ade80">89</div>
+                        <div class="kpi-sub">This month</div>
+                    </div>
+                    <div class="kpi-card" style="--glow:rgba(245,158,11,0.12)">
+                        <div class="kpi-label">🏖️ Leave Balance</div>
+                        <div class="kpi-val" style="color:#fbbf24">12</div>
+                        <div class="kpi-sub">Days remaining</div>
+                    </div>
+                    <div class="kpi-card" style="--glow:rgba(239,68,68,0.10)">
+                        <div class="kpi-label">🔒 Security Score</div>
+                        <div class="kpi-val" style="color:#4ade80">98</div>
+                        <div class="kpi-sub">Excellent</div>
+                    </div>
+                </div>
+
+                <div class="grid2">
+                    <!-- Team Online -->
+                    <div class="panel">
+                        <div class="panel-title">👥 Team Status</div>
+                        <div id="team-list">
+                            <div style="color:var(--muted);font-size:13px">Loading team...</div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="panel">
+                        <div class="panel-title">📌 Recent Activity</div>
+                        <div class="act-item">
+                            <div class="act-dot" style="background:#6366f1"></div>
+                            <div>
+                                <div class="act-text">Updated Q1 Financial Report</div>
+                                <div class="act-time">2 hours ago</div>
+                            </div>
+                        </div>
+                        <div class="act-item">
+                            <div class="act-dot" style="background:#22c55e"></div>
+                            <div>
+                                <div class="act-text">Submitted leave request for Mar 15</div>
+                                <div class="act-time">Yesterday</div>
+                            </div>
+                        </div>
+                        <div class="act-item">
+                            <div class="act-dot" style="background:#f59e0b"></div>
+                            <div>
+                                <div class="act-text">Accessed payroll dashboard</div>
+                                <div class="act-time">2 days ago</div>
+                            </div>
+                        </div>
+                        <div class="act-item">
+                            <div class="act-dot" style="background:#6366f1"></div>
+                            <div>
+                                <div class="act-text">Added team meeting notes</div>
+                                <div class="act-time">3 days ago</div>
+                            </div>
+                        </div>
+                        <div class="act-item">
+                            <div class="act-dot" style="background:#22c55e"></div>
+                            <div>
+                                <div class="act-text">Completed security awareness training</div>
+                                <div class="act-time">Last week</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="panel">
+                    <div class="panel-title">⚡ Quick Actions</div>
+                    <div class="quick-grid">
+                        <div class="quick-card">
+                            <div class="quick-icon">📝</div>
+                            <div class="quick-label">New Task</div>
+                        </div>
+                        <div class="quick-card">
+                            <div class="quick-icon">🏖️</div>
+                            <div class="quick-label">Apply for Leave</div>
+                        </div>
+                        <div class="quick-card">
+                            <div class="quick-icon">💰</div>
+                            <div class="quick-label">View Payslip</div>
+                        </div>
+                        <div class="quick-card">
+                            <div class="quick-icon">📢</div>
+                            <div class="quick-label">Company News</div>
+                        </div>
+                        <div class="quick-card">
+                            <div class="quick-icon">📁</div>
+                            <div class="quick-label">Shared Files</div>
+                        </div>
+                        <div class="quick-card">
+                            <div class="quick-icon">🎓</div>
+                            <div class="quick-label">Training</div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+
+        // ── Login ──
+        async function doLogin() {
+            const email = document.getElementById('inp-email').value.trim();
+            const password = document.getElementById('inp-password').value;
+            const btn = document.getElementById('btn-login');
+            const btnText = document.getElementById('btn-login-text');
+            const err = document.getElementById('login-error');
+
+            if (!email || !password) { showError('Please enter your email and password.'); return; }
+
+            btn.disabled = true;
+            btnText.textContent = 'Signing in…';
+            err.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await res.json();
+                if (!res.ok) { showError(data.error || 'Login failed'); return; }
+
+                showToast(`Welcome back, ${data.name}!`, 'success');
+                setTimeout(() => loadDashboard(), 400);
+            } catch {
+                showError('Cannot reach server. Is the portal running?');
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = 'Sign In';
+            }
+        }
+
+        // ── Logout ──
+        async function doLogout() {
+            try { await fetch('/api/logout', { method: 'POST' }); } catch { }
+            showToast('Signed out successfully.', 'info');
+            setTimeout(() => { document.getElementById('page-dashboard').style.display = 'none'; document.getElementById('page-login').style.display = 'flex'; currentUser = null; }, 500);
+        }
+
+        // ── Load dashboard ──
+        async function loadDashboard() {
+            try {
+                const [meRes, teamRes] = await Promise.all([
+                    fetch('/api/me'),
+                    fetch('/api/team'),
+                ]);
+                if (!meRes.ok) return;
+
+                currentUser = await meRes.json();
+                const team = (await teamRes.json()).data ?? [];
+
+                // Update UI
+                const firstName = currentUser.name.split(' ')[0];
+                const hour = new Date().getHours();
+                const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+                document.getElementById('dash-greeting').textContent = `${greeting}, ${firstName} 👋`;
+                document.getElementById('dash-date').textContent =
+                    new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) +
+                    ` · ${currentUser.role}`;
+                document.getElementById('nav-name').textContent = firstName;
+                document.getElementById('nav-avatar').textContent = currentUser.avatar;
+                document.getElementById('nav-avatar').style.background = currentUser.color;
+
+                // Team list
+                const teamEl = document.getElementById('team-list');
+                teamEl.innerHTML = team.map(m => `
+            <div class="team-item">
+                <div class="team-avatar" style="background:${m.color}">${m.avatar}</div>
+                <div>
+                    <div class="team-name">${m.name}</div>
+                    <div class="team-role">${m.role} · ${m.dept}</div>
+                </div>
+                ${m.online
+                        ? `<div class="online-badge"><div class="pulse-dot"></div>Online</div>`
+                        : `<div class="offline-badge">Offline</div>`}
+            </div>`).join('');
+
+                document.getElementById('page-login').style.display = 'none';
+                document.getElementById('page-dashboard').style.display = 'flex';
+            } catch (e) {
+                showError('Failed to load dashboard. Please try again.');
+            }
+        }
+
+        function fillLogin(email, pass) {
+            document.getElementById('inp-email').value = email;
+            document.getElementById('inp-password').value = pass;
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('login-error');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+        }
+
+        function showToast(msg, type) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast-${type}`;
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 3500);
+        }
+
+        // Enter key on login
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                const loginVisible = document.getElementById('page-login').style.display !== 'none';
+                if (loginVisible) doLogin();
+            }
+        });
+
+        // Check if already logged in
+        fetch('/api/me').then(r => { if (r.ok) loadDashboard(); }).catch(() => { });
+    </script>
+</body>
+
+</html>

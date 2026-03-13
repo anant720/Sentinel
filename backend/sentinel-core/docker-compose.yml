@@ -1,0 +1,125 @@
+version: "3.8"
+
+services:
+  # ── 1. API GATEWAY ───────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+    restart: always
+
+  # ── 2. APPLICATION CORE ────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ROLE=api
+    env_file:
+      - .env.production
+    depends_on:
+      - pgbouncer
+      - redis
+    restart: always
+
+  # ── 3. WORKER SCALING ──────────────────────────────────────────────────────
+  # Using compose replicas to strictly scale BullsMQ consumers 
+  workers:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ROLE=worker
+    env_file:
+      - .env.production
+    deploy:
+      replicas: 4 # Scales 4 independent thread loops tracking the Detection Engine automatically
+    depends_on:
+      - pgbouncer
+      - redis
+    restart: always
+
+  # ── 4. STATEFUL SERVICES ───────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sentinel_core
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+
+  # Connection Pooling abstraction shielding PostgreSQL strictly preventing connection explosions
+  pgbouncer:
+    image: edoburu/pgbouncer:1.21.0
+    environment:
+      DB_USER: user
+      DB_PASSWORD: pass
+      DB_HOST: db
+      DB_NAME: sentinel
+      POOL_MODE: session
+      MAX_CLIENT_CONN: 500
+      DEFAULT_POOL_SIZE: 50
+    depends_on:
+      - db
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    restart: always
+
+  # ── 5. OBSERVABILITY STACK ─────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/rules.yml:/etc/prometheus/rules.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    restart: always
+
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    restart: always
+
+  loki:
+    image: grafana/loki:2.9.0
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: always
+
+  grafana:
+    image: grafana/grafana:10.0.3
+    ports:
+      - "3002:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+      - loki
+    restart: always
+
+volumes:
+  pgdata:
