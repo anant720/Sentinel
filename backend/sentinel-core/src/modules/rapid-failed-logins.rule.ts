@@ -1,4 +1,4 @@
-import { DetectionEvent, DetectionRule, DetectionAlert, DetectionContext } from '../types.js';
+import { DetectionEvent, DetectionRule, DetectionAlert, DetectionContext } from '../detection/types.js';
 
 export const rapidFailedLogins: DetectionRule = {
     id: 'rapid_failed_logins',

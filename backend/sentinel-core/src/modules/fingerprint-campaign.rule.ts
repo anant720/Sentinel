@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { DetectionRule, DetectionEvent, DetectionContext, DetectionAlert } from '../types.js';
+import { DetectionRule, DetectionEvent, DetectionContext, DetectionAlert } from '../detection/types.js';
 
 export const fingerprintCampaign: DetectionRule = {
     id: 'fingerprint_campaign',

@@ -1,6 +1,6 @@
-import { DetectionModule, DetectionContext } from '../src/core/detection.types.js';
-import { AlertService } from '../src/services/alert.service.js';
-import { logger } from '../src/lib/logger.js';
+import { DetectionModule, DetectionContext } from '../core/detection.types.js';
+import { AlertService } from '../services/alert.service.js';
+import { logger } from '../lib/logger.js';
 import crypto from 'crypto';
 
 class PrivilegeEscalationModule implements DetectionModule {

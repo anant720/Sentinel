@@ -1,4 +1,4 @@
-import { DetectionRule, DetectionEvent, DetectionContext, DetectionAlert } from '../types.js';
+import { DetectionRule, DetectionEvent, DetectionContext, DetectionAlert } from '../detection/types.js';
 
 export const riskScoring: DetectionRule = {
     id: 'risk_scoring',
