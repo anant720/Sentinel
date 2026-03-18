@@ -21,7 +21,8 @@ const envSchema = z.object({
     DB_MAX_CONNECTIONS: z.coerce.number().default(50),
     DB_IDLE_TIMEOUT: z.coerce.number().default(30000),
 
-    REDIS_HOST: z.string(),
+    REDIS_URL: z.string().optional(),
+    REDIS_HOST: z.string().optional(),
     REDIS_PORT: z.coerce.number().default(6379),
     REDIS_PASSWORD: z.string().optional().nullable(),
 
