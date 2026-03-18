@@ -86,22 +86,26 @@ export async function setupServer(fastify: FastifyInstance) {
             return payload;
         });
 
-        // CORS: dynamic based on FRONTEND_URL and dev defaults
+        // CORS: dynamic based on FRONTEND_URL, ALLOWED_ORIGINS, and Vercel subdomains
         const devOrigins = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:5173', 'http://localhost:8080'];
         const frontendUrl = process.env.FRONTEND_URL;
+        const configOrigins = config.ALLOWED_ORIGINS === '*' ? [] : config.ALLOWED_ORIGINS.split(',');
         
-        let allowedOrigins: string | string[] = config.isDev ? devOrigins : [];
-        if (frontendUrl) {
-            allowedOrigins = config.isDev 
-                ? [...devOrigins, frontendUrl] 
-                : [frontendUrl];
-        } else if (!config.isDev) {
-            logger.warn('⚠️ FRONTEND_URL is not set in production. CORS might fail.');
-            allowedOrigins = config.ALLOWED_ORIGINS === '*' ? '*' : config.ALLOWED_ORIGINS.split(',');
-        }
+        const originValidator = (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => {
+            if (!origin || config.isDev) return cb(null, true);
+            
+            const isAllowed = 
+                configOrigins.includes(origin) || 
+                origin === frontendUrl || 
+                origin.endsWith('.vercel.app') ||
+                devOrigins.includes(origin);
+
+            if (isAllowed) return cb(null, true);
+            cb(null, false);
+        };
 
         await fastify.register(cors, {
-            origin: allowedOrigins,
+            origin: originValidator,
             credentials: true,
             methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         });
