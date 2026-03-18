@@ -13,7 +13,6 @@ const inviteSchema = z.object({
     email: z.string().email(),
     role: z.enum(['org_admin', 'security_analyst', 'viewer']),
     message: z.string().max(500).optional(),
-    password: z.string().min(1),
 });
 
 const acceptInviteSchema = z.object({
@@ -77,18 +76,11 @@ export class OrgController {
             return reply.code(400).send({ error: 'Bad Request', details: validation.error.format() });
         }
 
-        const { email, role, message, password } = validation.data;
+        const { email, role, message } = validation.data;
         const orgId = request.orgId;
         const { user_id: actorId } = request.user as JWTPayload;
 
-        // 0. Verify Actor's password
         const { db } = await import('../db/client.js');
-        const actorRes = await db.query('SELECT password_hash FROM users WHERE id = $1', [actorId]);
-        const { AuthService } = await import('../services/auth.service.js');
-        const isAuthValid = await AuthService.comparePassword(password, actorRes.rows[0].password_hash);
-        if (!isAuthValid) {
-            return reply.code(401).send({ error: 'Unauthorized', message: 'Invalid admin password' });
-        }
 
         if (role === 'org_admin') {
             return reply.code(403).send({ error: 'Forbidden', message: 'Single Admin Policy: No additional administrators can be invited.' });

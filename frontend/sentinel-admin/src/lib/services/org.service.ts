@@ -35,7 +35,7 @@ export const OrgService = {
     return data;
   },
 
-  invite: async (payload: { email: string; role: string; password: string }) => {
+  invite: async (payload: { email: string; role: string }) => {
     const { data } = await api.post('/organizations/invite', payload);
     return data;
   },
