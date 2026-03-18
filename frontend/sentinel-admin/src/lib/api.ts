@@ -34,8 +34,8 @@ api.interceptors.response.use(
              window.location.href = '/login';
              return Promise.reject(error);
         }
-        // Call refresh via the proxy too
-        const { data } = await axios.post('/api/auth/refresh', { user_id: userId }, { withCredentials: true });
+        // Call refresh via the configured API baseURL
+        const { data } = await api.post('/auth/refresh', { user_id: userId });
         
         if (data.accessToken) {
           useAuthStore.getState().setAccessToken(data.accessToken);
