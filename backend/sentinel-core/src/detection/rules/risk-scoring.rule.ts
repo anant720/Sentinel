@@ -1,7 +1,7 @@
 import { DetectionRule, DetectionEvent, DetectionContext, DetectionAlert } from '../types.js';
 
 export const riskScoring: DetectionRule = {
-    id: 'risk-scoring',
+    id: 'risk_scoring',
     description: 'Increments an entity risk score dynamically and raises Critical alerts if breached',
     evaluate: async (event: DetectionEvent, ctx: DetectionContext): Promise<DetectionAlert | null> => {
         if (!event.email && !event.ip) return null;

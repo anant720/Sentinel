@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { DetectionRule, DetectionEvent, DetectionContext, DetectionAlert } from '../types.js';
 
 export const fingerprintCampaign: DetectionRule = {
-    id: 'fingerprint-campaign',
+    id: 'fingerprint_campaign',
     description: 'Detects automated campaigns exhibiting identical event fingerprints across boundaries',
     evaluate: async (event: DetectionEvent, ctx: DetectionContext): Promise<DetectionAlert | null> => {
         // Build the physical fingerprint natively matching the requirements
@@ -24,7 +24,7 @@ export const fingerprintCampaign: DetectionRule = {
 
         const triggerCount = (results[0]?.[1] as number) || 0;
 
-        if (triggerCount >= 50) {
+        if (triggerCount >= 10) {
             return {
                 ruleId: fingerprintCampaign.id,
                 severity: 'high',

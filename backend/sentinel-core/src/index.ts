@@ -27,6 +27,7 @@ import { MetricsService } from './services/metrics.service.js';
 import { pool } from './db/client.js';
 import { BroadcastService, SECURITY_EVENT_CHANNEL } from './services/broadcast.service.js';
 import { Redis } from 'ioredis';
+import { createVerifier } from 'fast-jwt';
 
 // ---------------------------------------------------------------------------
 // Server instance
@@ -85,12 +86,19 @@ export async function setupServer(fastify: FastifyInstance) {
             return payload;
         });
 
-        // CORS: never origin:true in any env — always an explicit allowlist
+        // CORS: dynamic based on FRONTEND_URL and dev defaults
         const devOrigins = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:5173', 'http://localhost:8080'];
-        const prodOrigins = config.ALLOWED_ORIGINS === '*'
-            ? devOrigins  // Fallback to dev origins if wildcard mistakenly set in prod
-            : config.ALLOWED_ORIGINS.split(',').map((o) => o.trim());
-        const allowedOrigins = config.isDev ? devOrigins : prodOrigins;
+        const frontendUrl = process.env.FRONTEND_URL;
+        
+        let allowedOrigins: string | string[] = config.isDev ? devOrigins : [];
+        if (frontendUrl) {
+            allowedOrigins = config.isDev 
+                ? [...devOrigins, frontendUrl] 
+                : [frontendUrl];
+        } else if (!config.isDev) {
+            logger.warn('⚠️ FRONTEND_URL is not set in production. CORS might fail.');
+            allowedOrigins = config.ALLOWED_ORIGINS === '*' ? '*' : config.ALLOWED_ORIGINS.split(',');
+        }
 
         await fastify.register(cors, {
             origin: allowedOrigins,
@@ -373,10 +381,14 @@ export async function setupServer(fastify: FastifyInstance) {
                 async (request: any) => {
                     const { db } = await import('./lib/database.js');
                     const r = await db.query(
-                        `SELECT settings FROM organization_detection_settings WHERE organization_id = $1`,
+                        `SELECT module_id, enabled, config FROM organization_detection_settings WHERE organization_id = $1`,
                         [request.orgId]
                     );
-                    return { data: r.rows[0]?.settings ?? {} };
+                    const settings: Record<string, any> = {};
+                    r.rows.forEach(row => {
+                        settings[row.module_id] = { enabled: row.enabled, ...(row.config || {}) };
+                    });
+                    return { data: settings };
                 }
             );
 
@@ -387,15 +399,20 @@ export async function setupServer(fastify: FastifyInstance) {
 
             protected_.patch('/organizations/settings',
                 { preHandler: permissionMiddleware(Permission.SETTINGS_MANAGE) },
-                async (request: any, reply: any) => {
+                async (request: any) => {
                     const { db } = await import('./lib/database.js');
-                    await db.query(
-                        `INSERT INTO organization_detection_settings (organization_id, settings)
-                         VALUES ($1, $2)
-                         ON CONFLICT (organization_id)
-                         DO UPDATE SET settings = $2, updated_at = NOW()`,
-                        [request.orgId, request.body]
-                    );
+                    const body = request.body as Record<string, any>;
+                    
+                    for (const moduleId of Object.keys(body)) {
+                        const { enabled, ...config } = body[moduleId];
+                        await db.query(
+                            `INSERT INTO organization_detection_settings (organization_id, module_id, enabled, config)
+                             VALUES ($1, $2, $3, $4)
+                             ON CONFLICT (organization_id, module_id)
+                             DO UPDATE SET enabled = $3, config = $4, updated_at = NOW()`,
+                            [request.orgId, moduleId, enabled ?? true, config]
+                        );
+                    }
                     return { message: 'Settings updated' };
                 }
             );
@@ -433,7 +450,7 @@ export async function setupServer(fastify: FastifyInstance) {
                                       payload->>'user_email')        AS email,
                              COALESCE(payload->>'employee_name',
                                       payload->>'user_name')         AS employee_name,
-                             (payload->>'risk_score')::numeric        AS risk_score,
+                             risk_score::numeric                     AS risk_score,
                              payload,
                              created_at,
                              organization_id
@@ -576,12 +593,31 @@ async function bootstrap() {
             const token = url.searchParams.get('token');
             if (!token) { socket.close(4001, 'Unauthorized'); return; }
             try {
-                await fastify.jwt.verify(token);
-            } catch {
-                socket.close(4001, 'Invalid token'); return;
+                // Manually decode to get kid for secret lookup (outside Fastify request lifecycle)
+                const decoded: any = fastify.jwt.decode(token, { complete: true });
+                const kid = decoded?.header?.kid || 'default';
+                const secret = config.JWT_SECRETS_MAP[kid];
+
+                if (!secret) {
+                    logger.warn({ kid }, 'WS Auth failed: Invalid key ID');
+                    socket.close(4001, 'Invalid token');
+                    return;
+                }
+
+                // Use fast-jwt directly (since fastify.jwt.verify needs request context)
+                const verifier = createVerifier({ key: secret });
+                verifier(token);
+            } catch (err: any) {
+                logger.error({ err: err.message }, 'WS Auth exception');
+                socket.close(4001, 'Invalid token'); 
+                return;
             }
             socket.send(JSON.stringify({ type: 'connected', timestamp: Date.now() }));
             logger.info('WebSocket client authenticated and connected');
+        });
+
+        fastify.get('/health', async () => {
+            return { status: 'healthy', timestamp: new Date().toISOString() };
         });
 
         logger.info('WebSocket server ready at ws://0.0.0.0:' + config.PORT + '/ws');

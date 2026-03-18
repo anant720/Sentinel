@@ -12,6 +12,8 @@ const createOrgSchema = z.object({
 const inviteSchema = z.object({
     email: z.string().email(),
     role: z.enum(['org_admin', 'security_analyst', 'viewer']),
+    message: z.string().max(500).optional(),
+    password: z.string().min(1),
 });
 
 const acceptInviteSchema = z.object({
@@ -75,11 +77,24 @@ export class OrgController {
             return reply.code(400).send({ error: 'Bad Request', details: validation.error.format() });
         }
 
-        const { email, role } = validation.data;
+        const { email, role, message, password } = validation.data;
         const orgId = request.orgId;
+        const { user_id: actorId } = request.user as JWTPayload;
+
+        // 0. Verify Actor's password
+        const { db } = await import('../db/client.js');
+        const actorRes = await db.query('SELECT password_hash FROM users WHERE id = $1', [actorId]);
+        const { AuthService } = await import('../services/auth.service.js');
+        const isAuthValid = await AuthService.comparePassword(password, actorRes.rows[0].password_hash);
+        if (!isAuthValid) {
+            return reply.code(401).send({ error: 'Unauthorized', message: 'Invalid admin password' });
+        }
+
+        if (role === 'org_admin') {
+            return reply.code(403).send({ error: 'Forbidden', message: 'Single Admin Policy: No additional administrators can be invited.' });
+        }
 
         // Ensure user isn't already bound (only block if active)
-        const { db } = await import('../db/client.js');
         const existing = await db.query(`SELECT id FROM users WHERE email = $1 AND is_active = true`, [email]);
         if (existing.rows.length > 0) {
             request.log.warn({ email }, 'Invitation failed: Active user already exists');
@@ -91,8 +106,8 @@ export class OrgController {
         const rawToken = randomBytes(48).toString('base64url');
         const tokenHash = createHash('sha256').update(rawToken).digest('hex');
 
-        // Expiry 48 hours
-        const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+        // Expiry 1 hour
+        const expiresAt = new Date(Date.now() + 1 * 60 * 60 * 1000);
 
         // Invalidate any existing active invite for this email in this org
         await db.query(
@@ -114,7 +129,7 @@ export class OrgController {
         // Send email via MailerService (falls back to console if SMTP not configured)
         const { MailerService } = await import('../services/mailer.service.js');
         try {
-            await MailerService.sendInvite(email, rawToken, orgName, role);
+            await MailerService.sendInvite(email, rawToken, orgName, role, message);
         } catch (mailErr) {
             request.log.error({ mailErr }, 'Mailer failed but invitation generated');
         }

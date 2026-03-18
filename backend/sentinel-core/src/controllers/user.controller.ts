@@ -8,7 +8,12 @@ import { computeIntegrityHash } from '../security/index.js';
 import { z } from 'zod';
 
 const updateRoleSchema = z.object({
-    role: z.string()
+    role: z.string(),
+    password: z.string().min(1)
+});
+
+const deleteUserSchema = z.object({
+    password: z.string().min(1)
 });
 
 export class UserController {
@@ -52,7 +57,21 @@ export class UserController {
             return reply.code(400).send({ error: 'Bad Request', details: validation.error.format() });
         }
 
-        const newRole = validation.data.role;
+        const { role: newRole, password } = validation.data;
+
+        // 0. Verify Actor's password (Re-authentication)
+        const actorRes = await db.query('SELECT password_hash FROM users WHERE id = $1', [actorId]);
+        const { AuthService } = await import('../services/auth.service.js');
+        const isAuthValid = await AuthService.comparePassword(password, actorRes.rows[0].password_hash);
+        if (!isAuthValid) {
+            return reply.code(401).send({ error: 'Unauthorized', message: 'Invalid admin password for this privileged action' });
+        }
+
+        // 0b. Single Admin Policy: Prevent promotion to Admin
+        if (newRole === 'org_admin') {
+            return reply.code(403).send({ error: 'Forbidden', message: 'Single Admin Policy: No additional administrators can be created.' });
+        }
+
         // Verify RBAC enum structurally
         if (!isValidRole(newRole as any)) {
             return reply.code(400).send({ error: 'Bad Request', message: `Invalid role enum: ${newRole}` });
@@ -69,6 +88,17 @@ export class UserController {
         }
 
         const previousRole = userResult.rows[0].role;
+
+        // 1b. Primary Admin Protection (Immutable Founding Member)
+        const primaryAdminRes = await db.query(
+            'SELECT id FROM users WHERE organization_id = $1 ORDER BY created_at ASC LIMIT 1',
+            [request.orgId]
+        );
+        const primaryAdminId = primaryAdminRes.rows[0]?.id;
+        
+        if (targetUserId === primaryAdminId) {
+            return reply.code(403).send({ error: 'Forbidden', message: 'The Primary Admin account is immutable and cannot be demoted or deleted.' });
+        }
 
         // 2. Privilege constraint: Do not allow self-elevation
         if (targetUserId === actorId) {
@@ -131,7 +161,28 @@ export class UserController {
 
         const targetUser = userResult.rows[0];
 
+        // 0. Verify Actor's password
+        const deleteValidation = deleteUserSchema.safeParse(request.body);
+        if (!deleteValidation.success) {
+            return reply.code(400).send({ error: 'Bad Request', details: deleteValidation.error.format() });
+        }
+        const { password } = deleteValidation.data;
+
+        const actorRes = await db.query('SELECT password_hash FROM users WHERE id = $1', [actorId]);
+        const { AuthService } = await import('../services/auth.service.js');
+        const isAuthValid = await AuthService.comparePassword(password, actorRes.rows[0].password_hash);
+        if (!isAuthValid) {
+            return reply.code(401).send({ error: 'Unauthorized', message: 'Invalid admin password' });
+        }
+
         // 2. Safety Constraints
+        const primaryAdminRes = await db.query(
+            'SELECT id FROM users WHERE organization_id = $1 ORDER BY created_at ASC LIMIT 1',
+            [request.orgId]
+        );
+        if (targetUserId === primaryAdminRes.rows[0]?.id) {
+            return reply.code(403).send({ error: 'Forbidden', message: 'The Primary Admin account cannot be deleted.' });
+        }
         if (targetUserId === actorId) {
             return reply.code(400).send({ error: 'Bad Request', message: 'You cannot delete your own account.' });
         }

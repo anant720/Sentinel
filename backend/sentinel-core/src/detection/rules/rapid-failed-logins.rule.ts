@@ -1,7 +1,7 @@
 import { DetectionEvent, DetectionRule, DetectionAlert, DetectionContext } from '../types.js';
 
 export const rapidFailedLogins: DetectionRule = {
-    id: 'rapid-failed-logins',
+    id: 'rapid_failed_logins',
     description: 'Detects multiple failed logins across different time windows for a single account',
     evaluate: async (event: DetectionEvent, ctx: DetectionContext): Promise<DetectionAlert | null> => {
         if (event.type !== 'login_failure' || !event.email) {
@@ -36,17 +36,21 @@ export const rapidFailedLogins: DetectionRule = {
         let severity: 'low' | 'medium' | 'high' | 'critical' = 'medium';
         let evidence: any = {};
 
-        if (count5m >= 5) {
+        const threshold5m = ctx.config?.threshold5m || 5;
+        const threshold30m = ctx.config?.threshold30m || 10;
+        const threshold24h = ctx.config?.threshold24h || 20;
+
+        if (count5m >= threshold5m) {
             triggered = true;
-            evidence = { window: '5m', count: count5m, threshold: 5 };
-        } else if (count30m >= 10) {
+            evidence = { window: '5m', count: count5m, threshold: threshold5m };
+        } else if (count30m >= threshold30m) {
             triggered = true;
             severity = 'high';
-            evidence = { window: '30m', count: count30m, threshold: 10 };
-        } else if (count24h >= 20) {
+            evidence = { window: '30m', count: count30m, threshold: threshold30m };
+        } else if (count24h >= threshold24h) {
             triggered = true;
             severity = 'critical';
-            evidence = { window: '24h', count: count24h, threshold: 20 };
+            evidence = { window: '24h', count: count24h, threshold: threshold24h };
         }
 
         if (triggered) {

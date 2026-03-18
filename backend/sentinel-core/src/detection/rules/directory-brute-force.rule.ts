@@ -1,12 +1,17 @@
 import { DetectionRule, DetectionEvent, DetectionContext, DetectionAlert } from '../types.js';
 
 export const directoryBruteForce: DetectionRule = {
-    id: 'directory-brute-force',
+    id: 'directory_brute_force',
     description: 'Detects directory brute force attempts and aggressive path scanning',
     evaluate: async (event: DetectionEvent, _ctx: DetectionContext): Promise<DetectionAlert | null> => {
-        const targetEventTypes = ['directory_brute_force', 'path_scan_detected'];
+        if (!event.payload) {
+            return null;
+        }
+
+        const suspiciousPaths = ['/admin', '/.env', '/wp-admin', '/.git', '/config', '/api/v1/secrets'];
+        const isSuspicious = event.payload.path && suspiciousPaths.some(p => event.payload.path.includes(p));
         
-        if (!targetEventTypes.includes(event.type)) {
+        if (event.type !== 'directory_brute_force' && !isSuspicious) {
             return null;
         }
 

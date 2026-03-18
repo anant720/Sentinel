@@ -5,7 +5,7 @@ import { logger } from '../src/lib/logger.js';
 import crypto from 'crypto';
 
 class DeviceAnomalyModule implements DetectionModule {
-    name = 'Device Anomaly (Burst Volume)';
+    name = 'device_anomaly_burst';
 
     subscribesTo(): string[] {
         return ['*']; // Observe ALL events, we are looking for volume regardless of type

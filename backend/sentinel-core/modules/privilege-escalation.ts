@@ -4,7 +4,7 @@ import { logger } from '../src/lib/logger.js';
 import crypto from 'crypto';
 
 class PrivilegeEscalationModule implements DetectionModule {
-    name = 'Privilege Escalation Detection';
+    name = 'privilege_escalation';
 
     subscribesTo(): string[] {
         return ['user_role_updated'];

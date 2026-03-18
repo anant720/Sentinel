@@ -128,20 +128,34 @@ export class DashboardService {
      */
     static async getHistoricalRisk(orgId: string, range: string) {
         let interval = '1 day';
-        if (range === '15d') interval = '15 days';
-        if (range === '1m') interval = '30 days';
+        let bucket = 'minute'; // Default for 1d
 
-        const result = await db.query(
-            `SELECT risk_score as score, timestamp
-             FROM risk_history
-             WHERE organization_id = $1 AND timestamp > NOW() - INTERVAL '${interval}'
-             ORDER BY timestamp ASC`,
-            [orgId]
-        );
+        if (range === '15d') {
+            interval = '15 days';
+            bucket = 'hour';
+        } else if (range === '1m') {
+            interval = '31 days';
+            bucket = 'hour'; // Using hour instead of day to keep the chart dynamic even for new projects
+        }
+
+        // Use MAX(risk_score) to capture peak threats (AVG would hide them)
+        const query = range === '1d' 
+            ? `SELECT risk_score as score, timestamp
+               FROM risk_history
+               WHERE organization_id = $1 AND timestamp > NOW() - INTERVAL '1 day'
+               ORDER BY timestamp ASC`
+            : `SELECT MAX(risk_score)::int as score, date_trunc('${bucket}', timestamp) as timestamp
+               FROM risk_history
+               WHERE organization_id = $1 AND timestamp > NOW() - INTERVAL '${interval}'
+               GROUP BY date_trunc('${bucket}', timestamp)
+               ORDER BY timestamp ASC`;
+
+        const result = await db.query(query, [orgId]);
 
         return result.rows.map(row => ({
             score: row.score,
             timestamp: row.timestamp.getTime()
         }));
     }
+
 }

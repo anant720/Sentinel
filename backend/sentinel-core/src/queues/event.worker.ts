@@ -23,6 +23,8 @@ import { detectionEngine } from '../detection/engine.js';
 import { redisClient } from '../lib/redis.js';
 import { MetricsService } from '../services/metrics.service.js';
 import { BroadcastService } from '../services/broadcast.service.js';
+import { RiskAssessmentService } from '../services/risk.service.js';
+import { GeoIPService } from '../services/geoip.service.js';
 import { performance } from 'perf_hooks';
 
 // ── Processor ────────────────────────────────────────────────────────────────
@@ -92,16 +94,52 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
                 redis: redisClient
             };
 
+            // ── 5. Automated Intrinsic Risk Assessment ─────────────────────────
+            const riskScore = RiskAssessmentService.evaluate({ type: event.event_type, payload });
+            const severity = RiskAssessmentService.getSeverity(riskScore);
+
+            // ── 6. GeoIP Enrichment ────────────────────────────────────────────
+            const ip = payload.ip_address || payload.ip || payload.source_ip || '';
+            const geo = GeoIPService.lookup(ip);
+
+            if (geo) {
+                await db.query(
+                    `UPDATE events
+                     SET risk_score = $1,
+                         geo_country = $2,
+                         geo_country_code = $3,
+                         geo_city = $4,
+                         geo_lat = $5,
+                         geo_lon = $6,
+                         geo_isp = $7
+                     WHERE id = $8`,
+                    [riskScore, geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp, eventId]
+                );
+            } else {
+                await db.query(`UPDATE events SET risk_score = $1 WHERE id = $2`, [riskScore, eventId]);
+            }
+
             // Execute asynchronous heuristic rule registry natively
             await detectionEngine.execute(detectionEvent, context);
 
-            // ── 6. Live Broadcast (Cross-Process via Redis) ──────────────────
+            // ── 7. Live Broadcast (Cross-Process via Redis) ──────────────────
             await BroadcastService.publish({
                 id: detectionEvent.id,
                 type: detectionEvent.type,
                 timestamp: detectionEvent.timestamp,
-                severity: 'low', // Default if no alert fired
-                payload: detectionEvent.payload
+                severity,
+                risk_score: riskScore,
+                payload: {
+                    ...detectionEvent.payload,
+                    risk_score: riskScore,
+                    geo: geo ? {
+                        country: geo.country,
+                        country_code: geo.countryCode,
+                        city: geo.city,
+                        lat: geo.lat,
+                        lon: geo.lon,
+                    } : null,
+                }
             });
 
             const durationInSeconds = (performance.now() - startTime) / 1000;

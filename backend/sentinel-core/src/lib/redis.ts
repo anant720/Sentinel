@@ -2,12 +2,20 @@ import { Redis } from 'ioredis';
 import { config } from '../config/index.js';
 import { logger } from './logger.js';
 
-export const redisClient = new Redis({
-    host: config.REDIS_HOST,
-    port: config.REDIS_PORT,
-    password: config.REDIS_PASSWORD || undefined,
-    lazyConnect: true, // Only connects when requested, matching old behavior
-});
+// Support full connection string if available (standard for Render/Upstash)
+const redisUrl = process.env.REDIS_URL;
+
+export const redisClient = redisUrl
+    ? new Redis(redisUrl, {
+        lazyConnect: true,
+        tls: redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+    })
+    : new Redis({
+        host: config.REDIS_HOST,
+        port: config.REDIS_PORT,
+        password: config.REDIS_PASSWORD || undefined,
+        lazyConnect: true,
+    });
 
 redisClient.on('error', (err) => logger.error('Redis Client Error', err));
 redisClient.on('connect', () => logger.info('Connected to Redis'));

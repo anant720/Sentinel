@@ -14,6 +14,7 @@ export interface DetectionEvent {
 export interface DetectionContext {
     redis: Redis;
     orgId: string;
+    config?: any;
 }
 
 export interface DetectionAlert {

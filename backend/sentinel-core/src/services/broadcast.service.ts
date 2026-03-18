@@ -8,6 +8,7 @@ export interface BroadcastEvent {
     type: string;
     timestamp: number;
     severity: 'low' | 'medium' | 'high' | 'critical';
+    risk_score: number;
     payload: any;
 }
 

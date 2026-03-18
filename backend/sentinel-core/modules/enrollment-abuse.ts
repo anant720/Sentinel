@@ -4,7 +4,7 @@ import { logger } from '../src/lib/logger.js';
 import crypto from 'crypto';
 
 class EnrollmentAbuseModule implements DetectionModule {
-    name = 'Enrollment Token Abuse';
+    name = 'enrollment_token_abuse';
 
     subscribesTo(): string[] {
         return ['enrollment_token_abuse'];

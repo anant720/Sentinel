@@ -5,7 +5,7 @@ import { logger } from '../src/lib/logger.js';
 import crypto from 'crypto';
 
 class RapidFailedLoginsModule implements DetectionModule {
-    name = 'Rapid Consecutive Failed Logins';
+    name = 'rapid_failed_logins';
 
     subscribesTo(): string[] {
         return ['login_failed'];

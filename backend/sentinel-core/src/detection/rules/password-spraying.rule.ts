@@ -1,10 +1,10 @@
 import { DetectionRule, DetectionEvent, DetectionContext, DetectionAlert } from '../types.js';
 
 export const passwordSpraying: DetectionRule = {
-    id: 'password-spraying',
+    id: 'password_spraying',
     description: 'Detects password spraying attacks where a single IP targets multiple distinct accounts',
     evaluate: async (event: DetectionEvent, ctx: DetectionContext): Promise<DetectionAlert | null> => {
-        if (event.type !== 'login_failed' || !event.email || !event.ip) {
+        if (event.type !== 'login_failure' || !event.email || !event.ip) {
             return null;
         }
 
@@ -24,7 +24,7 @@ export const passwordSpraying: DetectionRule = {
 
         const uniqueAccountsCount = (results[2]?.[1] as number) || 0;
 
-        if (uniqueAccountsCount >= 20) {
+        if (uniqueAccountsCount >= 10) {
             return {
                 ruleId: passwordSpraying.id,
                 severity: 'high',

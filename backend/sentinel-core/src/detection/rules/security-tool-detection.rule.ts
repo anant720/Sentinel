@@ -1,7 +1,7 @@
 import { DetectionRule, DetectionEvent, DetectionContext, DetectionAlert } from '../types.js';
 
 export const securityToolDetection: DetectionRule = {
-    id: 'security-tool-detection',
+    id: 'security_tool_detection',
     description: 'Detects various hacking tools, scanners, and brute force attempts',
     evaluate: async (event: DetectionEvent, _ctx: DetectionContext): Promise<DetectionAlert | null> => {
         const toolEventTypes = [

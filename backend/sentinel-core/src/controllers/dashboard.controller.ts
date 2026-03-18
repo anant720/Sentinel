@@ -28,4 +28,5 @@ export class DashboardController {
         const result = await DashboardService.getHistoricalRisk(orgId, range);
         return reply.code(200).send(result);
     }
+
 }

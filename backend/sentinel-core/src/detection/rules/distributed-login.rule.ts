@@ -1,10 +1,10 @@
 import { DetectionRule, DetectionEvent, DetectionContext, DetectionAlert } from '../types.js';
 
 export const distributedLogin: DetectionRule = {
-    id: 'distributed-login',
+    id: 'distributed_login',
     description: 'Detects distributed brute-force attacks where multiple distinct IPs target a single account within a 5-minute window',
     evaluate: async (event: DetectionEvent, ctx: DetectionContext): Promise<DetectionAlert | null> => {
-        if (event.type !== 'login_failed' || !event.email || !event.ip) {
+        if (event.type !== 'login_failure' || !event.email || !event.ip) {
             return null;
         }
 
@@ -24,7 +24,7 @@ export const distributedLogin: DetectionRule = {
 
         const uniqueIpsCount = (results[2]?.[1] as number) || 0;
 
-        if (uniqueIpsCount >= 10) {
+        if (uniqueIpsCount >= 5) {
             return {
                 ruleId: distributedLogin.id,
                 severity: 'critical',
