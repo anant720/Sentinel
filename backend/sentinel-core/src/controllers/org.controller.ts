@@ -118,16 +118,17 @@ export class OrgController {
             [orgId, email, role, tokenHash, expiresAt]
         );
 
-        // Send email via MailerService (falls back to console if SMTP not configured)
-        const { MailerService } = await import('../services/mailer.service.js');
-        try {
-            await MailerService.sendInvite(email, rawToken, orgName, role, message);
-        } catch (mailErr) {
-            request.log.error({ mailErr }, 'Mailer failed but invitation generated');
-        }
+        // Send email via MailerService in background (avoids blocking the UI on SMTP latency)
+        import('../services/mailer.service.js').then(({ MailerService }) => {
+            MailerService.sendInvite(email, rawToken, orgName, role, message).catch(err => {
+                request.log.error({ err }, 'Background Mailer failed');
+            });
+        }).catch(err => {
+            request.log.error({ err }, 'Failed to import MailerService in background');
+        });
 
         return reply.code(200).send({
-            message: 'Invite generated and sent successfully',
+            message: 'Invite generated successfully',
             token: rawToken
         });
     }
