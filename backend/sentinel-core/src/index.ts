@@ -385,7 +385,7 @@ export async function setupServer(fastify: FastifyInstance) {
                         [request.orgId]
                     );
                     const settings: Record<string, any> = {};
-                    r.rows.forEach(row => {
+                    r.rows.forEach((row: any) => {
                         settings[row.module_id] = { enabled: row.enabled, ...(row.config || {}) };
                     });
                     return { data: settings };

@@ -46,12 +46,12 @@ export class DetectionEngine {
              WHERE organization_id = $1 AND module_id = ANY($2)`,
             [orgId, executeSubscribers.map(m => m.name)]
         );
-        const configs = new Map(configResult.rows.map(r => [r.module_id, r]));
+        const configs = new Map(configResult.rows.map((r: any) => [r.module_id, r]));
 
         // 2. Discard disabled modules
         const runnableModules = executeSubscribers.filter(mod => {
             const orgConfig = configs.get(mod.name);
-            return orgConfig ? orgConfig.enabled : true; // Default to true if unconfigured
+            return orgConfig ? (orgConfig as any).enabled : true; // Default to true if unconfigured
         });
 
         // 3. Concurrency Semaphore (imitating p-limit)
@@ -81,7 +81,7 @@ export class DetectionEngine {
             const context: DetectionContext = {
                 orgId,
                 event,
-                config: orgConfig?.config,
+                config: (orgConfig as any)?.config,
                 redis: redisClient
             };
             const start = performance.now();

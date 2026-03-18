@@ -9,7 +9,7 @@ export const directoryBruteForce: DetectionRule = {
         }
 
         const suspiciousPaths = ['/admin', '/.env', '/wp-admin', '/.git', '/config', '/api/v1/secrets'];
-        const isSuspicious = event.payload.path && suspiciousPaths.some(p => event.payload.path.includes(p));
+        const isSuspicious = event.payload?.path && suspiciousPaths.some(p => event.payload?.path.includes(p));
         
         if (event.type !== 'directory_brute_force' && !isSuspicious) {
             return null;

@@ -17,7 +17,7 @@ pool.on('connect', () => {
     logger.info('Connected to PostgreSQL');
 });
 
-pool.on('error', (err) => {
+pool.on('error', (err: any) => {
     logger.error('Unexpected error on idle PostgreSQL client', err);
     process.exit(-1);
 });

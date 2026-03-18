@@ -152,7 +152,7 @@ export class DashboardService {
 
         const result = await db.query(query, [orgId]);
 
-        return result.rows.map(row => ({
+        return result.rows.map((row: any) => ({
             score: row.score,
             timestamp: row.timestamp.getTime()
         }));

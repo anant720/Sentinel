@@ -23,7 +23,7 @@ export class AuditController {
         // Generate CSV String (RFC 4180 compatible fallback)
         const headers = ['Timestamp', 'User Email', 'Action', 'Resource Type', 'Resource ID', 'IP Address'];
 
-        const rows = result.rows.map(r => {
+        const rows = result.rows.map((r: any) => {
             return [
                 new Date(r.created_at).toISOString(),
                 r.user_email || 'System',
@@ -37,7 +37,7 @@ export class AuditController {
         // Simple CSV stringifier escaping inner quotes
         const csvContent = [
             headers.join(','),
-            ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            ...rows.map((row: any[]) => row.map((cell: any) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
         ].join('\n');
 
         const timestamp = new Date().toISOString().split('T')[0];

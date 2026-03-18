@@ -21,14 +21,14 @@ export class DetectionEngine {
              WHERE organization_id = $1`,
             [context.orgId]
         );
-        const configs = new Map(configResult.rows.map(r => [r.module_id, r]));
+        const configs = new Map(configResult.rows.map((r: any) => [r.module_id, r]));
 
         logger.debug({ eventId: event.id, rulesCount: rules.length }, 'Routing event to detection registry');
 
         for (const rule of rules) {
             // ── 2. Discard disabled modules ──
             const orgConfig = configs.get(rule.id);
-            const isEnabled = orgConfig ? orgConfig.enabled : true;
+            const isEnabled = orgConfig ? (orgConfig as any).enabled : true;
 
             if (!isEnabled) {
                 logger.debug({ ruleId: rule.id, orgId: context.orgId }, 'Skipping disabled detection rule');
@@ -38,7 +38,7 @@ export class DetectionEngine {
             // ── 3. Inject tenant-specific config ──
             const ruleContext: DetectionContext = {
                 ...context,
-                config: orgConfig?.config
+                config: (orgConfig as any)?.config
             };
 
             const start = performance.now();
@@ -78,6 +78,7 @@ export class DetectionEngine {
                             type: alertRecord.type,
                             timestamp: alertRecord.created_at.getTime(),
                             severity: alertRecord.severity,
+                            risk_score: 50, // Default for engine-triggered alerts
                             payload: alertRecord.evidence
                         });
                     }

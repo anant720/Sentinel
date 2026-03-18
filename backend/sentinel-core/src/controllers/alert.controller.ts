@@ -24,7 +24,7 @@ export class AlertController {
         // Simple in-memory filter until the Service supports param injection natively
         let filteredAlerts = alerts;
         if (validation.data.status) {
-            filteredAlerts = alerts.filter(a => a.status === validation.data.status);
+            filteredAlerts = alerts.filter((a: any) => a.status === validation.data.status);
         }
 
         return reply.code(200).send({ data: filteredAlerts });

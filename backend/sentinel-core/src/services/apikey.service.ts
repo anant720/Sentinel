@@ -65,7 +65,7 @@ export class ApiKeyService {
         const record = rows[0] as ApiKeyRecord;
 
         // Fire-and-forget: Bump last_used_at timestamp.
-        db.query(`UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1`, [record.id]).catch(err => {
+        db.query(`UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1`, [record.id]).catch((err: any) => {
             // Background update failures shouldn't block validation bounds
         });
 
