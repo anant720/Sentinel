@@ -54,7 +54,7 @@ export async function setupServer(fastify: FastifyInstance) {
                     imgSrc: ["'self'", "data:"],
                     connectSrc: config.isDev
                         ? ["'self'", 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:5173']
-                        : ["'self'"],
+                        : ["'self'", 'https://sentinel-admin-demo.vercel.app', 'https://sentinel-admin-git-2631-anant-suthars-projects.vercel.app', 'https://sentinel-admin-f0gq8332k-anant-suthars-projects.vercel.app'],
                     fontSrc: ["'self'"],
                     objectSrc: ["'none'"],
                     mediaSrc: ["'none'"],
