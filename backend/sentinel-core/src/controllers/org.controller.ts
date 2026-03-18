@@ -119,12 +119,14 @@ export class OrgController {
         );
 
         // Send email via MailerService in background (avoids blocking the UI on SMTP latency)
+        const { email: emailTo, role: inviteRole } = { email, role };
         import('../services/mailer.service.js').then(({ MailerService }) => {
-            MailerService.sendInvite(email, rawToken, orgName, role, message).catch(err => {
-                request.log.error({ err }, 'Background Mailer failed');
-            });
+            console.log(`[Mailer] Sending invite to ${emailTo} for org: ${orgName}, role: ${inviteRole}`);
+            MailerService.sendInvite(emailTo, rawToken, orgName, inviteRole, message)
+                .then(() => console.log(`[Mailer] ✅ Invite successfully sent to ${emailTo}`))
+                .catch(err => console.error(`[Mailer] ❌ Failed to send invite to ${emailTo}:`, err?.message || err));
         }).catch(err => {
-            request.log.error({ err }, 'Failed to import MailerService in background');
+            console.error('[Mailer] ❌ Failed to import MailerService:', err?.message || err);
         });
 
         return reply.code(200).send({
