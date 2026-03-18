@@ -30,12 +30,10 @@ export function useSecurityStream({ maxEvents = 100 }: UseSecurityStreamOptions 
   useEffect(() => {
     if (!accessToken) return;
 
-    // Resolve WS URL from current origin  
+    // Resolve WS URL from environment or current origin  
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Detect if running locally and connect directly to backend
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const wsHost = isLocal ? 'localhost:3001' : window.location.host;
-    const wsUrl = `${wsProtocol}//${wsHost}/ws?token=${accessToken}`;
+    const envWsUrl = import.meta.env.VITE_WS_URL;
+    const wsUrl = envWsUrl || `${wsProtocol}//${window.location.host}/ws?token=${accessToken}`;
 
     let ws: WebSocket;
     let reconnectTimer: ReturnType<typeof setTimeout>;
@@ -46,6 +44,7 @@ export function useSecurityStream({ maxEvents = 100 }: UseSecurityStreamOptions 
         wsRef.current = ws;
 
         ws.onopen = () => {
+          console.log('✅ Security Stream WebSocket connected to:', wsUrl);
           setIsConnected(true);
           setError(null);
         };
@@ -53,27 +52,29 @@ export function useSecurityStream({ maxEvents = 100 }: UseSecurityStreamOptions 
         ws.onmessage = (msg) => {
           try {
             const data = JSON.parse(msg.data);
-            // Skip the "connected" handshake message
             if (data.type === 'connected') return;
             setEvents((prev) => [data, ...prev].slice(0, maxEvents));
-          } catch {
-            // Ignore unparseable messages
+          } catch (err) {
+            console.warn('⚠️ WS Message parse error:', err);
           }
         };
 
-        ws.onerror = () => {
+        ws.onerror = (err) => {
+          console.error('❌ Security Stream WebSocket Error:', err);
           setError('WebSocket connection error');
           setIsConnected(false);
         };
 
         ws.onclose = (e) => {
+          console.log(`ℹ️ Security Stream WebSocket Closed (Code: ${e.code}, Reason: ${e.reason || 'None'})`);
           setIsConnected(false);
-          // Auto-reconnect after 5s unless closed intentionally (code 4001 = unauthorized)
           if (e.code !== 4001 && e.code !== 1000) {
+            console.log('🔄 Attempting reconnection in 5s...');
             reconnectTimer = setTimeout(connect, 5000);
           }
         };
       } catch (err) {
+        console.error('❌ Failed to initialize WebSocket:', err);
         setError('Failed to open WebSocket connection');
         setIsConnected(false);
       }

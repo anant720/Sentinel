@@ -48,6 +48,7 @@ export default function DashboardPage() {
     refetchInterval: 5000,
   });
 
+
   const scanMutation = useMutation({
     mutationFn: () => DashboardService.runScan(),
     onSuccess: (result) => {
@@ -63,10 +64,22 @@ export default function DashboardPage() {
     }
   });
 
-  const trend = (historicalRisk || []).map((d: RiskDataPoint) => ({
-    time: new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    risk: d.score
-  }));
+  const trend = (historicalRisk || []).map((d: RiskDataPoint) => {
+    const date = new Date(d.timestamp);
+    let timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    if (range === '1m') {
+      timeLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    } else if (range === '15d') {
+      timeLabel = `${date.toLocaleDateString([], { day: 'numeric' })} ${date.toLocaleTimeString([], { hour: '2-digit' })}`;
+    }
+    
+    return {
+      time: timeLabel,
+      risk: d.score,
+      fullDate: date.toLocaleString()
+    };
+  });
 
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : '—';
 
@@ -163,6 +176,8 @@ export default function DashboardPage() {
                   tickLine={false} 
                   axisLine={false} 
                   tick={{ fill: '#4b5563' }}
+                  interval="preserveStartEnd"
+                  minTickGap={range === '1d' ? 60 : 100}
                 />
                 <YAxis 
                   stroke="#4b5563" 

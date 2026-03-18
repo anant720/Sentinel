@@ -141,3 +141,22 @@ npm start
 Navigate to `http://localhost:4000` (The Acme Portal). 
 Attempt several failed logins using fake emails (e.g., `hacker@test.com`).
 Return to your Sentinel Admin Console at `http://localhost:5173/live-events`. You will immediately see the failed login events streaming via WebSockets, and if you fail enough times, an Alert will trigger!
+
+---
+
+## 7. Configure Email Invitations (SMTP)
+
+Sentinel uses Nodemailer for automated invites. To go live:
+
+1. Open `backend/sentinel-core/.env`.
+2. Configure your SMTP provider (e.g., Brevo, Mailtrap):
+   ```env
+   SMTP_HOST=smtp-relay.brevo.com
+   SMTP_PORT=587
+   SMTP_USER=a559c1001@smtp-brevo.com
+   SMTP_PASS=your_secret_key
+   SMTP_FROM='"Sentinel Support" <nntsuthar@gmail.com>'
+   FRONTEND_URL=http://localhost:5173
+   ```
+3. Restart the backend API.
+4. You can now invite users from the **Identity** page, and they will receive a real email!

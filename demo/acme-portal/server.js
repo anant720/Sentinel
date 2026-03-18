@@ -11,12 +11,19 @@ const fetch = require('node-fetch');
 const path = require('path');
 
 const app = express();
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 
 // ── Sentinel Config (hidden from all users — server-side only) ──
-const SENTINEL_URL = process.env.SENTINEL_URL || 'http://localhost:3000';
-const SENTINEL_API_KEY = process.env.SENTINEL_API_KEY || 'sk_sentinel_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+const SENTINEL_URL = process.env.SENTINEL_URL || 'http://localhost:3001';
+const SENTINEL_API_KEY = process.env.SENTINEL_API_KEY || 'sk_sentinel_dK-rWnNFGfP8lUBdWGQQG48nXBntFvsJuITeS4W8-lA';
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
+
+// Helper to get self URL for reporting
+const getSelfUrl = (req) => {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    return `${protocol}://${host}`;
+};
 
 // ── Simulated Acme employee database ──
 const EMPLOYEES = {
@@ -239,6 +246,7 @@ function requireAuth(req, res, next) {
     if (!token) return res.status(401).json({ error: 'Not authenticated' });
     try {
         req.employee = jwt.verify(token, JWT_SECRET);
+        req.employee.token = token; // Keep token for reporting
         next();
     } catch {
         res.clearCookie('acme_token');
@@ -265,7 +273,7 @@ app.post('/api/login', async (req, res) => {
             ip_address: ip,
             user_agent: ua,
             source_app: 'Acme Corp Employee Portal',
-            destination: 'http://localhost:4000/login',
+            destination: `${getSelfUrl(req)}/login`,
             risk_score: 40,
         });
         return res.status(401).json({ error: 'Invalid email or password' });
@@ -295,11 +303,12 @@ app.post('/api/login', async (req, res) => {
         ip_address: ip,
         user_agent: ua,
         source_app: 'Acme Corp Employee Portal',
-        destination: 'http://localhost:4000/dashboard',
+        destination: `${getSelfUrl(req)}/dashboard`,
         risk_score: 0,
+        jwt: token, // Pass JWT here
     });
 
-    res.json({ success: true, name: employee.name.split(' ')[0] });
+    res.json({ success: true, name: employee.name.split(' ')[0], token });
 });
 
 // POST /api/logout
@@ -319,7 +328,7 @@ app.post('/api/logout', requireAuth, async (req, res) => {
         session_duration_minutes: durationMin,
         ip_address: req.socket.remoteAddress,
         source_app: 'Acme Corp Employee Portal',
-        destination: 'http://localhost:4000/logout',
+        destination: `${getSelfUrl(req)}/logout`,
     });
 
     res.json({ success: true });
@@ -554,11 +563,11 @@ app.get('*', (req, res) => {
     const url = req.originalUrl || req.url;
     // If it's a known page or the root, it's a 200
     const isKnownPage = PAGES.includes(url.replace('/', '')) || url === '/';
-    
+
     if (isKnownPage) {
         return res.sendFile(path.join(__dirname, 'public', 'index.html'));
     }
-    
+
     // Otherwise, it's a 404 (important for directory brute force detection)
     res.status(404).send('Not Found');
 });

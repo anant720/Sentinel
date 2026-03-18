@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DashboardPage from './features/dashboard/pages/DashboardPage';
 import AlertsPage from './features/alerts/pages/AlertsPage';
@@ -13,6 +14,17 @@ import { useAuthStore } from './lib/store';
 
 export default function App() {
   const { isAuthenticated } = useAuthStore();
+
+  // Global 10-minute Refresh (Kiosk/Dashboard Stability)
+  useEffect(() => {
+    const TEN_MINUTES = 10 * 60 * 1000;
+    const interval = setInterval(() => {
+      console.log('🔄 Sentinel Global Refresh: Synchronizing all features...');
+      window.location.reload();
+    }, TEN_MINUTES);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <BrowserRouter>

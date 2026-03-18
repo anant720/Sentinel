@@ -9,7 +9,6 @@ import {
   Fingerprint, 
   Settings, 
   LogOut,
-  Search,
   Bell,
   ShieldCheck,
   X,
@@ -175,14 +174,6 @@ export default function DashboardLayout() {
             </div>
 
             <div className="flex items-center gap-6">
-              <div className="relative group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-primary transition-colors" size={14} />
-                <input 
-                  type="text" 
-                  placeholder="Search telemetry..."
-                  className="bg-white/5 border border-white/5 rounded-full py-1.5 pl-9 pr-4 text-xs w-64 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
-                />
-              </div>
               
               <div className="flex items-center gap-3 border-l border-white/10 pl-6">
                 {/* Notification Bell */}

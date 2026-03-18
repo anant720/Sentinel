@@ -6,7 +6,7 @@ import { Users, Trash2, Search, UserPlus, X, Mail, Send, ChevronDown } from 'luc
 import { useToast } from '../../../components/ui/ToastProvider';
 import { User } from '../../../types';
 
-const ROLES = ['viewer', 'security_analyst', 'org_admin'] as const;
+const ROLES = ['viewer', 'security_analyst'] as const;
 type RoleValue = typeof ROLES[number];
 
 export default function IdentityPage() {
@@ -20,6 +20,10 @@ export default function IdentityPage() {
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleMenuOpen, setRoleMenuOpen] = useState<string | null>(null);
+  
+  // Privileged Action Confirmation
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pendingAction, setPendingAction] = useState<{ type: 'role' | 'delete' | 'invite', data: any } | null>(null);
 
   const { data: users } = useQuery({
     queryKey: ['users'],
@@ -40,32 +44,38 @@ export default function IdentityPage() {
   const currentUser = meRes?.user;
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => OrgService.deleteUser(id),
+    mutationFn: ({ id, password }: { id: string; password: string }) => OrgService.deleteUser(id, password),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       showToast('User identity removed.', 'info');
+      setPendingAction(null);
+      setConfirmPassword('');
     },
     onError: (e: any) => showToast(e.response?.data?.message || 'Failed to remove user.', 'error'),
   });
 
   const updateRoleMutation = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: string }) => OrgService.updateUserRole(id, role),
+    mutationFn: ({ id, role, password }: { id: string; role: string; password: string }) => OrgService.updateUserRole(id, role, password),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       showToast(`Role updated to ${vars.role}.`, 'success');
       setRoleMenuOpen(null);
+      setPendingAction(null);
+      setConfirmPassword('');
     },
     onError: (e: any) => showToast(e.response?.data?.message || 'Failed to update role.', 'error'),
   });
 
   const inviteMutation = useMutation({
-    mutationFn: (payload: { email: string; role: string }) => OrgService.invite(payload),
+    mutationFn: (payload: { email: string; role: string; password: string }) => OrgService.invite(payload),
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['invitations'] });
       const baseUrl = window.location.origin;
       setLastInviteLink(`${baseUrl}/invite/${data.token}`);
       showToast('Invitation generated successfully!', 'success');
       setInviteEmail('');
+      setConfirmPassword('');
+      // We don't close the modal yet so they can copy the link
     },
     onError: (e: any) => showToast(e.response?.data?.message || 'Failed to send invitation.', 'error'),
   });
@@ -218,15 +228,15 @@ export default function IdentityPage() {
                             </button>
                             {roleMenuOpen === user.id && (
                               <div className="absolute left-0 top-7 z-30 bg-[#0a0d14] border border-white/10 rounded-lg shadow-2xl min-w-[150px] py-1 animate-in fade-in duration-150">
-                                {ROLES.filter(r => r !== user.role?.toLowerCase()).map(r => (
-                                  <button
-                                    key={r}
-                                    onClick={() => updateRoleMutation.mutate({ id: user.id, role: r })}
-                                    className="w-full text-left px-3 py-2 text-[10px] font-bold text-gray-400 hover:text-white hover:bg-white/5 uppercase tracking-widest transition-all"
-                                  >
-                                    {r.replace(/_/g, ' ')}
-                                  </button>
-                                ))}
+                                  {ROLES.map(r => (
+                                    <button
+                                      key={r}
+                                      onClick={() => setPendingAction({ type: 'role', data: { id: user.id, role: r } })}
+                                      className="w-full text-left px-3 py-2 text-[10px] font-bold text-gray-400 hover:text-white hover:bg-white/5 uppercase tracking-widest transition-all"
+                                    >
+                                      {r.replace(/_/g, ' ')}
+                                    </button>
+                                  ))}
                               </div>
                             )}
                           </div>
@@ -252,7 +262,7 @@ export default function IdentityPage() {
                         <td className="px-6 py-5 text-right">
                           <button 
                             onClick={() => {
-                              if (confirm(`Remove ${user.email}?`)) deleteMutation.mutate(user.id);
+                              setPendingAction({ type: 'delete', data: { id: user.id, email: user.email } });
                             }}
                             disabled={!canDelete || deleteMutation.isPending}
                             title={
@@ -379,13 +389,67 @@ export default function IdentityPage() {
                 </div>
                 <div className="pt-4 flex gap-3">
                   <button onClick={() => setIsInviteModalOpen(false)} className="flex-1 py-3 border border-white/5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-all">Cancel</button>
-                  <button onClick={() => inviteMutation.mutate({ email: inviteEmail, role: inviteRole })} disabled={inviteMutation.isPending || !inviteEmail} className="flex-1 py-3 bg-primary/20 border border-primary/30 text-primary rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/30 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                  <button 
+                    onClick={() => setPendingAction({ type: 'invite', data: { email: inviteEmail, role: inviteRole } })} 
+                    disabled={inviteMutation.isPending || !inviteEmail} 
+                    className="flex-1 py-3 bg-primary/20 border border-primary/30 text-primary rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/30 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  >
                     <Send size={14} />
-                    {inviteMutation.isPending ? 'Sending…' : 'Send Invite'}
+                    {inviteMutation.isPending ? 'Sending…' : 'Continue'}
                   </button>
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {/* Privileged Action Confirmation Modal */}
+      {pendingAction && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="glass-panel w-full max-w-sm p-8 space-y-6 shadow-2xl border-primary/30 animate-in zoom-in-95 duration-300">
+            <div className="text-center space-y-2">
+              <h2 className="text-lg font-bold text-white">Privileged Action</h2>
+              <p className="text-xs text-gray-400">
+                {pendingAction.type === 'invite' ? `Inviting ${pendingAction.data.email}` : 
+                 pendingAction.type === 'delete' ? `Removing ${pendingAction.data.email}` :
+                 `Changing role to ${pendingAction.data.role}`}
+              </p>
+              <p className="text-[10px] text-primary font-bold uppercase tracking-tighter italic">Enter your Admin password to confirm</p>
+            </div>
+
+            <div className="space-y-4">
+              <input 
+                type="password"
+                autoFocus
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-black/40 border border-white/10 rounded-lg py-3 px-4 text-center text-sm tracking-widest focus:ring-1 focus:ring-primary/50 outline-none transition-all"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && confirmPassword) {
+                    if (pendingAction.type === 'invite') inviteMutation.mutate({ ...pendingAction.data, password: confirmPassword });
+                    if (pendingAction.type === 'role') updateRoleMutation.mutate({ ...pendingAction.data, password: confirmPassword });
+                    if (pendingAction.type === 'delete') deleteMutation.mutate({ id: pendingAction.data.id, password: confirmPassword });
+                  }
+                }}
+              />
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => { setPendingAction(null); setConfirmPassword(''); }}
+                  className="flex-1 py-3 border border-white/5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-all"
+                >Cancel</button>
+                <button 
+                  disabled={!confirmPassword || deleteMutation.isPending || updateRoleMutation.isPending || inviteMutation.isPending}
+                  onClick={() => {
+                    if (pendingAction.type === 'invite') inviteMutation.mutate({ ...pendingAction.data, password: confirmPassword });
+                    if (pendingAction.type === 'role') updateRoleMutation.mutate({ ...pendingAction.data, password: confirmPassword });
+                    if (pendingAction.type === 'delete') deleteMutation.mutate({ id: pendingAction.data.id, password: confirmPassword });
+                  }}
+                  className="flex-1 py-3 bg-primary/20 border border-primary/30 text-primary rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/40 transition-all font-bold"
+                >Confirm</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

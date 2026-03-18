@@ -6,13 +6,13 @@ import { Zap, Terminal, Save, Cpu, ShieldCheck, Check } from 'lucide-react';
 
 // The 7 detection modules are known from the backend detection engine
 const DETECTION_MODULES = [
-  { id: 'brute_force', name: 'Brute Force Detection' },
-  { id: 'account_takeover', name: 'Account Takeover' },
-  { id: 'privilege_escalation', name: 'Privilege Escalation' },
-  { id: 'data_exfiltration', name: 'Data Exfiltration' },
-  { id: 'impossible_travel', name: 'Impossible Travel' },
-  { id: 'insider_threat', name: 'Insider Threat' },
-  { id: 'credential_stuffing', name: 'Credential Stuffing' },
+  { id: 'rapid_failed_logins', name: 'Brute Force Detection', description: 'Detects consecutive failed login attempts' },
+  { id: 'directory_brute_force', name: 'Directory Brute Force', description: 'Detects aggressive path scanning and fuzzing' },
+  { id: 'distributed_login', name: 'Distributed Login Attack', description: 'Detects logins from multiple IPs for a single account' },
+  { id: 'password_spraying', name: 'Password Spraying', description: 'Detects a single IP targeting multiple accounts' },
+  { id: 'fingerprint_campaign', name: 'Fingerprint Campaign', description: 'Detects automated tools via browser/device fingerprints' },
+  { id: 'security_tool_detection', name: 'Security Tool Detection', description: 'Detects known hacking tools (Nmap, SQLMap, etc.)' },
+  { id: 'risk_scoring', name: 'Risk Score Threshold', description: 'Behavioral risk aggregation engine' },
 ];
 
 export default function DetectionLogicPage() {
@@ -43,10 +43,11 @@ export default function DetectionLogicPage() {
   });
 
   const handleSave = () => {
-    // Toggle all modules to enabled state (saves current settings)
+    // Save current state of all modules (preserves their current toggle)
     const payload: Record<string, any> = {};
     DETECTION_MODULES.forEach(m => {
-      payload[m.id] = { ...(settings[m.id] || {}), enabled: true };
+      const current = settings[m.id] || {};
+      payload[m.id] = { ...current, enabled: current.enabled !== false };
     });
     saveMutation.mutate(payload);
   };
@@ -118,7 +119,8 @@ export default function DetectionLogicPage() {
                        <tr key={module.id} className="hover:bg-white/[0.02] transition-colors">
                          <td className="px-6 py-4">
                            <div className="text-xs font-bold text-gray-200">{module.name}</div>
-                           <div className="text-[9px] text-gray-600 font-mono mt-0.5">{module.id}</div>
+                           <div className="text-[9px] text-gray-500 mt-0.5">{module.description}</div>
+                           <div className="text-[9px] text-gray-600 font-mono mt-0.5 opacity-50">{module.id}</div>
                          </td>
                          <td className="px-6 py-4 text-xs text-gray-500 font-bold font-mono">
                            {cfg.threshold ?? '5'}

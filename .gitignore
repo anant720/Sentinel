@@ -46,3 +46,9 @@ demo/acme-portal/dist/
 **/*.cert
 **/cert.pem
 **/key.pem
+
+# Project Specific
+backup/
+.gemini/
+*.sql
+!**/src/db/migrations/*.sql

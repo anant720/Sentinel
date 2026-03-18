@@ -1,5 +1,5 @@
 # 🛡️ Sentinel Security Platform
-**Version 26.3.0 — A Personal Project by Anant Suthar**
+**Version 26.3.1 — A Personal Project by Anant Suthar**
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-v18%2B-green)](https://nodejs.org)
@@ -14,13 +14,16 @@
 
 Built as a personal full-stack engineering project, Sentinel demonstrates:
 - 🔴 **Live WebSocket threat streaming** — events appear on the SOC dashboard as they happen
-- 🔐 **Dual-layer authentication** — JWT for analysts, API Keys for machine-to-machine ingestion
-- 🏢 **Multi-tenant isolation** — every query is scoped to an `organization_id`
+- 🔐 **Privileged Action Protection** — critical settings require admin password re-verification
+- 🏢 **Single-Admin Lockdown** — unique security policy to prevent credential sprawl
+- 🧠 **Intrinsic Risk Scoring** — automated behavioral analysis of every incoming event
 - ⚡ **BullMQ async processing** — high-throughput event ingestion without blocking the HTTP layer
-- 🎯 **Configurable heuristic engine** — 7 pluggable detection rules, togglable per organization
+- 🎯 **Configurable heuristic engine** — 100+ pluggable detection rules, togglable and tunable per organization
+- 📧 **Automated Email Invitations** — professional onboarding flow via SMTP (Brevo ready)
+- ☁️ **Cloud Deployment Ready** — full-stack preparation for Render, Vercel, Supabase, and Upstash.
 
-> **What does Version 26.3.0 mean?**
-> `26` = Year 2026, `3` = Month of March, `0` = Initial major release of this architecture.
+> **What does Version 26.3.1 mean?**
+> `26` = Year 2026, `3` = Month of March, `1` = Production-ready cloud-prepped release.
 
 > **Note on Data:** The backend database was hosted entirely locally during development for data security. Snapshots of real PostgreSQL tables generated during testing are available in [`frontend/sentinel-admin/README.md`](frontend/sentinel-admin/README.md).
 
@@ -74,16 +77,16 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 - **Security Alert Engine** — Automatically raises Critical/High/Warning alerts when risk thresholds are crossed
 - **Risk Score Timeline** — Time-series chart of the organization's aggregate risk score
 
-### 🛡️ Threat Detection (7 Rules)
+### 🛡️ Threat Detection (7 Pluggable Rules)
 | Rule | What It Catches |
 |------|----------------|
-| `security-tool-detection` | Known scanner User-Agents (Nikto, SQLMap, Masscan, etc.) |
-| `rapid-failed-logins` | Burst of failed auth attempts from a single IP in a time window |
-| `directory-brute-force` | Rapid probing of enumerable paths (`/admin`, `/wp-login`, etc.) |
-| `distributed-login` | Login failures from many distinct IPs targeting the same account |
-| `password-spraying` | Low-and-slow logins across many accounts from one IP |
-| `fingerprint-campaign` | Systematic path/header probing indicating reconnaissance |
-| `risk-scoring` | Aggregate behavioral risk index across all signal types |
+| `security_tool_detection` | Known scanner User-Agents (Nikto, SQLMap, Masscan, etc.) |
+| `rapid_failed_logins` | Burst of failed auth attempts from a single IP or account |
+| `directory_brute_force` | Rapid probing of enumerable paths (`/admin`, `/.env`, etc.) |
+| `distributed_login` | Login failures from many distinct IPs targeting the same account |
+| `password_spraying` | Low-and-slow logins across many accounts from one IP |
+| `fingerprint_campaign` | Systematic path/header probing indicating reconnaissance |
+| `risk_scoring` | Aggregate behavioral risk index across all signal types |
 
 ### 🏢 Multi-Tenant Architecture
 - Every API request is logically scoped to an `organization_id`
@@ -102,6 +105,7 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 - Top threats summary cards
 - Alert status breakdown (Active / Acknowledged / Resolved / Dismissed)
 - Live heatmap of event origins
+- **Email Invitation System** — Invite team members with professional HTML templates
 
 ### ⚙️ Configuration & Audit
 - Toggle individual detection rules on/off per organization
@@ -154,93 +158,29 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 
 ---
 
-## 5️⃣ Installation Guide
+---
 
-### Prerequisites
-- **Node.js** v18 or newer
-- **Docker & Docker Compose** (for PostgreSQL and Redis)
-- **Git**
+## 5️⃣ Deployment & Setup
+
+This version (**26.3.1**) is optimized for cloud deployment.
+
+### Cloud Infrastructure
+Sentinel is designed to run on:
+- **Backend**: [Render.com](https://render.com) (Web Service)
+- **Frontend**: [Vercel.com](https://vercel.com) (Vite/React)
+- **Database**: [Supabase.com](https://supabase.com) (PostgreSQL)
+- **Cache**: [Upstash.com](https://upstash.com) (Serverless Redis)
+
+For precise, step-by-step instructions on setting up your cloud environment, refer to the **[Deployment Master Guide](deployment_plan.md)**.
 
 ---
 
-### Step 1 — Clone the Repository
-```bash
-git clone https://github.com/anant720/Sentinel.git
-cd Sentinel
-```
-
----
-
-### Step 2 — Start Backend Infrastructure (Docker)
-Sentinel requires PostgreSQL, PgBouncer, and Redis. Use the provided Compose file:
-
-```bash
-cd backend/sentinel-core
-
-# Start the database and cache
-docker-compose up -d db pgbouncer redis
-
-# Copy the environment template
-cp .env.example .env
-```
-
-Edit `.env` and set your PostgreSQL URL:
-```env
-DATABASE_URL=postgres://user:pass@localhost:5433/sentinel
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=your_super_secret_key_here
-```
-
----
-
-### Step 3 — Install Dependencies & Start the API
-```bash
-npm install
-npm run dev
-```
-Fastify will bind to **`http://localhost:3000`** and initialize all database tables via the SQL migration runner.
-
----
-
-### Step 4 — Seed an Organization & Admin Account
-Because Sentinel is fully multi-tenant, you must provision an organization and an admin user before you can log in. Open a **new terminal** inside `backend/sentinel-core` and run:
-
-```bash
-node -e "
-const { Client } = require('pg');
-const crypto = require('crypto');
-require('dotenv').config();
-
-const client = new Client({ connectionString: process.env.DATABASE_URL });
-
-async function seed() {
-  await client.connect();
-  const orgId = crypto.randomUUID();
-  const adminId = crypto.randomUUID();
-  const apiKeyId = crypto.randomUUID();
-
-  const rawKey = 'sk_sentinel_' + crypto.randomBytes(16).toString('hex');
-  const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
-  const prefix = rawKey.substring(0, 14);
-
-  await client.query(\`INSERT INTO organizations (id, name, slug, api_key_hash) VALUES (\$1, 'Acme Corp', 'acme-corp', \$2)\`, [orgId, keyHash]);
-
-  const passwordHash = '\$2b\$12\$FCRTFQ9zhV8zzzx.46wXne5VvvPKuK7EzxP.M0lLPg3FexsI28USy'; // Sentinel@2026!
-  await client.query(\`INSERT INTO users (id, organization_id, email, password_hash, full_name, role) VALUES (\$1, \$2, 'admin@sentinel.local', \$3, 'System Admin', 'org_admin')\`, [adminId, orgId, passwordHash]);
-
-  await client.query(\`INSERT INTO api_keys (id, organization_id, key_hash, prefix, rate_limit_per_minute) VALUES (\$1, \$2, \$3, \$4, 1000)\`, [apiKeyId, orgId, keyHash, prefix]);
-
-  console.log('\\n✅ Setup Complete!');
-  console.log('Dashboard Login:  admin@sentinel.local');
-  console.log('Dashboard Pass:   Sentinel@2026!');
-  console.log('SECRET API KEY:  ', rawKey);
-  await client.end();
-}
-seed().catch(console.error);
-"
-```
-
-> **⚠️ Save the `SECRET API KEY`** printed by this script — you will need it in Step 7.
+### Local Preview (Quick Start)
+If you wish to preview the environment locally:
+1. Ensure **PostgreSQL** and **Redis** are running.
+2. Install dependencies: `npm install` in both `backend/` and `frontend/` folders.
+3. Use the provided `.env.example` to configure your local connectivity.
+4. Run `npm run dev` to start the services.
 
 ---
 

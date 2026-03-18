@@ -6,13 +6,13 @@ export const OrgService = {
     return data;
   },
 
-  deleteUser: async (id: string) => {
-    const { data } = await api.delete(`/users/${id}`);
+  deleteUser: async (id: string, password: string) => {
+    const { data } = await api.delete(`/users/${id}`, { data: { password } });
     return data;
   },
 
-  updateUserRole: async (id: string, role: string) => {
-    const { data } = await api.patch(`/users/${id}/role`, { role });
+  updateUserRole: async (id: string, role: string, password: string) => {
+    const { data } = await api.patch(`/users/${id}/role`, { role, password });
     return data;
   },
 
@@ -35,7 +35,7 @@ export const OrgService = {
     return data;
   },
 
-  invite: async (payload: { email: string; role: string }) => {
+  invite: async (payload: { email: string; role: string; password: string }) => {
     const { data } = await api.post('/organizations/invite', payload);
     return data;
   },
