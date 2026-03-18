@@ -12,11 +12,19 @@ import { logger } from '../lib/logger.js';
 
 // ── Connection config ────────────────────────────────────────────────────────
 
-export const queueConnection = {
-    host: config.REDIS_HOST,
-    port: config.REDIS_PORT,
-    password: config.REDIS_PASSWORD || undefined,
-};
+export const queueConnection = process.env.REDIS_URL
+    ? {
+        host: new URL(process.env.REDIS_URL).hostname,
+        port: parseInt(new URL(process.env.REDIS_URL).port || '6379', 10),
+        password: new URL(process.env.REDIS_URL).password || undefined,
+        username: new URL(process.env.REDIS_URL).username || undefined,
+        tls: process.env.REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+      }
+    : {
+        host: config.REDIS_HOST,
+        port: config.REDIS_PORT,
+        password: config.REDIS_PASSWORD || undefined,
+      };
 
 // ── Queue instance ───────────────────────────────────────────────────────────
 

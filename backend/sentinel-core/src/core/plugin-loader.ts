@@ -13,28 +13,35 @@ export class PluginLoader {
     private modulesDir: string;
     private loadedModules: Map<string, DetectionModule> = new Map();
 
-    constructor(modulesDir: string = path.join(process.cwd(), 'modules')) {
-        this.modulesDir = modulesDir;
+    constructor(modulesDir?: string) {
+        // Resolve modules relative to the current source/dist directory
+        const __dirname = path.dirname(new URL(import.meta.url).pathname);
+        const normalizedDir = process.platform === 'win32' ? __dirname.substring(1) : __dirname;
+        
+        this.modulesDir = modulesDir || path.resolve(normalizedDir, '..', 'modules');
+        
         if (!fs.existsSync(this.modulesDir)) {
+            logger.warn(`Modules directory not found at ${this.modulesDir}, creating...`);
             fs.mkdirSync(this.modulesDir, { recursive: true });
         }
     }
 
     async loadModules(fastify?: FastifyInstance) {
         const files = fs.readdirSync(this.modulesDir);
+        logger.debug(`Scanning ${this.modulesDir} for modules. Found ${files.length} files.`);
 
         for (const file of files) {
             const fullPath = path.join(this.modulesDir, file);
             const stat = fs.statSync(fullPath);
 
-            if (stat.isDirectory() || file.endsWith('.ts') || file.endsWith('.js')) {
-                try {
-                    const modulePath =
-                        file.endsWith('.ts') || file.endsWith('.js')
-                            ? fullPath
-                            : path.join(fullPath, 'index.ts');
+            // In production (dist), we load .js. In development (src), we load .ts.
+            const isLoadable = file.endsWith('.js') || file.endsWith('.ts');
 
-                    const imported = await import(`file://${modulePath}`);
+            if (stat.isFile() && isLoadable) {
+                try {
+                    // Correct absolute path for ESM import on Linux/Render
+                    const fileUrl = `file://${fullPath}`;
+                    const imported = await import(fileUrl);
                     const plugin: DetectionModule = imported.default || imported;
 
                     if (this.validateModule(plugin)) {
@@ -42,7 +49,7 @@ export class PluginLoader {
                         logger.info(`📦 Module loaded: ${plugin.name}`);
                     }
                 } catch (err) {
-                    logger.error(`Failed to load module ${file}`, err);
+                    logger.error(`Failed to load module ${file}:`, err);
                 }
             }
         }

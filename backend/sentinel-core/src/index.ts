@@ -545,34 +545,35 @@ async function bootstrap() {
             logger.info('Background Worker initialized synchronously in Monolith profile');
         }
 
-        // ------------------------------------------------------------------
-        // 6. Start
-        // ------------------------------------------------------------------
-        await fastify.listen({ port: config.PORT, host: config.HOST });
-        logger.info(`🚀 Sentinel Core started on http://${config.HOST}:${config.PORT}`);
+        // — Health checks (public, kubernetes-compliant)
+        fastify.get('/health', async () => {
+            return { status: 'healthy', timestamp: new Date().toISOString() };
+        });
 
         // ------------------------------------------------------------------
         // WebSocket server for real-time security event streaming
         // ------------------------------------------------------------------
         const { WebSocketServer } = await import('ws');
-        // Access the underlying Node http server fastify created
         const httpServer = (fastify.server as any);
         const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
         // Publish helper — attach to global so detection engine can call it
         (global as any).broadcastSecurityEvent = (event: object) => {
-            // Now publishing to Redis instead of direct broadcasting
             BroadcastService.publish(event as any).catch((err: any) => 
                 logger.error({ err: err.message }, 'Global broadcast failure')
             );
         };
 
         // ── Redis Subscriber for Hooking Event Ingestion (Cross-Process) ──
-        const subscriber = new Redis({
-            host: config.REDIS_HOST,
-            port: config.REDIS_PORT,
-            password: config.REDIS_PASSWORD || undefined,
-        });
+        const subscriber = process.env.REDIS_URL
+            ? new Redis(process.env.REDIS_URL, {
+                tls: process.env.REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+              })
+            : new Redis({
+                host: config.REDIS_HOST,
+                port: config.REDIS_PORT,
+                password: config.REDIS_PASSWORD || undefined,
+              });
 
         subscriber.subscribe(SECURITY_EVENT_CHANNEL, (err) => {
             if (err) logger.error({ err: err.message }, 'Failed to subscribe to security events channel');
@@ -593,7 +594,6 @@ async function bootstrap() {
             const token = url.searchParams.get('token');
             if (!token) { socket.close(4001, 'Unauthorized'); return; }
             try {
-                // Manually decode to get kid for secret lookup (outside Fastify request lifecycle)
                 const decoded: any = fastify.jwt.decode(token, { complete: true });
                 const kid = decoded?.header?.kid || 'default';
                 const secret = config.JWT_SECRETS_MAP[kid];
@@ -604,7 +604,6 @@ async function bootstrap() {
                     return;
                 }
 
-                // Use fast-jwt directly (since fastify.jwt.verify needs request context)
                 const verifier = createVerifier({ key: secret });
                 verifier(token);
             } catch (err: any) {
@@ -616,11 +615,12 @@ async function bootstrap() {
             logger.info('WebSocket client authenticated and connected');
         });
 
-        fastify.get('/health', async () => {
-            return { status: 'healthy', timestamp: new Date().toISOString() };
-        });
-
-        logger.info('WebSocket server ready at ws://0.0.0.0:' + config.PORT + '/ws');
+        // ------------------------------------------------------------------
+        // 6. Start
+        // ------------------------------------------------------------------
+        await fastify.listen({ port: config.PORT, host: config.HOST });
+        logger.info(`🚀 Sentinel Core started on http://${config.HOST}:${config.PORT}`);
+        logger.info('WebSocket server ready at /ws');
 
         // ------------------------------------------------------------------
         // 7. Nightly DB maintenance (Retention + partition creation)
