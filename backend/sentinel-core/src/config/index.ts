@@ -49,7 +49,7 @@ if (envVars.data.NODE_ENV === 'production') {
         ['JWT_SECRET', process.env.JWT_SECRET, 32],
         ['JWT_REFRESH_SECRET', process.env.JWT_REFRESH_SECRET, 32],
         ['DATABASE_URL', process.env.DATABASE_URL],
-        ['REDIS_HOST', process.env.REDIS_HOST],
+        ['REDIS_URL', process.env.REDIS_URL || process.env.REDIS_HOST],
         ['SMTP_HOST', process.env.SMTP_HOST],
         ['SMTP_USER', process.env.SMTP_USER],
         ['SMTP_PASS', process.env.SMTP_PASS],
