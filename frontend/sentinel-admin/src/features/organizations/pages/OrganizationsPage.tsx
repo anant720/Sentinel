@@ -266,7 +266,6 @@ export default function OrganizationsPage() {
             <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} className="w-full bg-[#05080f] border border-white/5 rounded-lg py-3 px-4 text-xs focus:ring-1 focus:ring-primary/50 outline-none appearance-none font-bold text-gray-400">
               <option value="viewer">Viewer</option>
               <option value="security_analyst">Security Analyst</option>
-              <option value="org_admin">Org Admin</option>
             </select>
           </div>
           <div className="flex items-end">
