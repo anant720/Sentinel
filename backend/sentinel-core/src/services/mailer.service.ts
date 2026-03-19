@@ -12,7 +12,12 @@ if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
         auth: {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS
-        }
+        },
+        connectionTimeout: 10000,  // 10s to establish connection
+        greetingTimeout: 10000,    // 10s for SMTP greeting
+        socketTimeout: 15000,      // 15s for socket inactivity
+        logger: false,
+        debug: false
     });
 }
 
