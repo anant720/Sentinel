@@ -63,6 +63,9 @@ export class MailerService {
             subject: `You have been invited to ${orgName} on Sentinel Core`,
             htmlContent: getInviteTemplate(inviteLink, orgName, role, message)
         };
+        console.log(`[Mailer] Preparing to send invite via Brevo API...`);
+        console.log(`[Mailer]    - To: ${toEmail}`);
+        console.log(`[Mailer]    - Sender: ${senderName} <${senderEmail}>`);
 
         try {
             const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -81,7 +84,10 @@ export class MailerService {
                 console.error(`[Mailer] ❌ Brevo API error (${response.status}): ${errorBody}`);
             } else {
                 const result = await response.json() as { messageId?: string };
-                console.log(`[Mailer] ✅ Invite sent to ${toEmail} via Brevo API. MessageId: ${result?.messageId}`);
+                console.log(`[Mailer] ✅ Invite sent successfully!`);
+                console.log(`[Mailer]    - To: ${toEmail}`);
+                console.log(`[Mailer]    - From: ${senderEmail}`);
+                console.log(`[Mailer]    - MessageId: ${result?.messageId}`);
             }
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : String(error);

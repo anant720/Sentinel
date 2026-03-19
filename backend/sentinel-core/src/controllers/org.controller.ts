@@ -117,6 +117,17 @@ export class OrgController {
              VALUES ($1, $2, $3, $4, $5)`,
             [orgId, email, role, tokenHash, expiresAt]
         );
+        
+        // Log the invitation in the audit trail
+        await AuditService.log({
+            organization_id: orgId,
+            user_id: actorId,
+            action: 'user.invite',
+            resource_type: 'user',
+            resource_id: email, // Email as identifier for the invited user
+            metadata: { role, message },
+            ip_address: request.ip
+        });
 
         // Send email via MailerService in background (avoids blocking the UI on SMTP latency)
         const { email: emailTo, role: inviteRole } = { email, role };

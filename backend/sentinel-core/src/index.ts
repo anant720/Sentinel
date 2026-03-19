@@ -396,6 +396,11 @@ export async function setupServer(fastify: FastifyInstance) {
                 }
             );
 
+            protected_.get('/organizations/audit-logs',
+                { preHandler: permissionMiddleware(Permission.ORG_READ) },
+                AuditController.getLogs
+            );
+
             protected_.get('/organizations/audit-logs/export',
                 { preHandler: permissionMiddleware(Permission.ORG_READ) },
                 AuditController.exportLogs
@@ -584,8 +589,14 @@ async function bootstrap() {
             else logger.info('Subscribed to Redis security_events channel for real-time broadcasting');
         });
 
+        const { MANAGEMENT_EVENT_CHANNEL } = await import('./services/broadcast.service.js');
+        subscriber.subscribe(MANAGEMENT_EVENT_CHANNEL, (err) => {
+            if (err) logger.error({ err: err.message }, 'Failed to subscribe to management events channel');
+            else logger.info('Subscribed to Redis management_events channel for real-time broadcasting');
+        });
+
         subscriber.on('message', (channel, message) => {
-            if (channel === SECURITY_EVENT_CHANNEL) {
+            if (channel === SECURITY_EVENT_CHANNEL || channel === MANAGEMENT_EVENT_CHANNEL) {
                 wss.clients.forEach((client: any) => {
                     if (client.readyState === 1) client.send(message);
                 });

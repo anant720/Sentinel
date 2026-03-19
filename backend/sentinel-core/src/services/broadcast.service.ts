@@ -2,14 +2,16 @@ import { redisClient } from '../lib/redis.js';
 import { logger } from '../lib/logger.js';
 
 export const SECURITY_EVENT_CHANNEL = 'security_events';
+export const MANAGEMENT_EVENT_CHANNEL = 'management_events';
 
 export interface BroadcastEvent {
     id: string;
     type: string;
     timestamp: number;
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    risk_score: number;
+    severity?: 'low' | 'medium' | 'high' | 'critical';
+    risk_score?: number;
     payload: any;
+    organization_id?: string | undefined;
 }
 
 /**
@@ -21,15 +23,25 @@ export interface BroadcastEvent {
 export const BroadcastService = {
     /**
      * Publishes a security event to the Redis channel.
-     * This can be called from background workers, the detection engine, or simulation scripts.
      */
     async publish(event: BroadcastEvent): Promise<void> {
+        return this._publish(SECURITY_EVENT_CHANNEL, event);
+    },
+
+    /**
+     * Publishes a management/audit event to the Redis channel.
+     */
+    async publishManagement(event: BroadcastEvent): Promise<void> {
+        return this._publish(MANAGEMENT_EVENT_CHANNEL, event);
+    },
+
+    async _publish(channel: string, event: BroadcastEvent): Promise<void> {
         try {
             const message = JSON.stringify(event);
-            await redisClient.publish(SECURITY_EVENT_CHANNEL, message);
-            logger.debug({ eventId: event.id, type: event.type }, 'Security event published to Redis Pub/Sub');
+            await redisClient.publish(channel, message);
+            logger.debug({ eventId: event.id, type: event.type, channel }, 'Event published to Redis Pub/Sub');
         } catch (err: any) {
-            logger.error({ err: err.message, eventId: event.id }, 'Failed to publish security event to Redis');
+            logger.error({ err: err.message, eventId: event.id, channel }, 'Failed to publish event to Redis');
         }
     }
 };

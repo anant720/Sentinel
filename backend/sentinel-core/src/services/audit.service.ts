@@ -28,6 +28,23 @@ export class AuditService {
                 entry.metadata,
                 entry.ip_address
             ]);
+
+            // Broadcast management event to Redis for real-time portals
+            const { BroadcastService, MANAGEMENT_EVENT_CHANNEL } = await import('./broadcast.service.js');
+            await BroadcastService.publishManagement({
+                id: Math.random().toString(36).substring(7), // Brief ID for broadcast instance
+                type: `audit.${entry.action}`,
+                timestamp: Date.now(),
+                organization_id: entry.organization_id,
+                payload: {
+                    action: entry.action,
+                    resource_type: entry.resource_type,
+                    resource_id: entry.resource_id,
+                    user_id: entry.user_id,
+                    metadata: entry.metadata,
+                    ip_address: entry.ip_address
+                }
+            });
         } catch (err) {
             logger.error('Failed to write audit log', err);
             // Don't throw - audit logging shouldn't crash the main flow

@@ -2,6 +2,23 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../lib/database.js';
 
 export class AuditController {
+    static async getLogs(request: FastifyRequest, reply: FastifyReply) {
+        const orgId = request.orgId;
+        const { limit = 50, offset = 0 } = request.query as any;
+
+        const result = await db.query(
+            `SELECT u.email as user_email, a.action, a.resource_type, a.resource_id, a.metadata, a.ip_address, a.created_at
+             FROM audit_logs a
+             LEFT JOIN users u ON a.user_id = u.id
+             WHERE a.organization_id = $1
+             ORDER BY a.created_at DESC
+             LIMIT $2 OFFSET $3`,
+            [orgId, limit, offset]
+        );
+
+        return { data: result.rows };
+    }
+
     static async exportLogs(request: FastifyRequest, reply: FastifyReply) {
         const orgId = request.orgId;
 
