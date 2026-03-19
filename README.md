@@ -19,54 +19,38 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 - 🧠 **Intrinsic Risk Scoring** — automated behavioral analysis of every incoming event
 - ⚡ **BullMQ async processing** — high-throughput event ingestion without blocking the HTTP layer
 - 🎯 **Configurable heuristic engine** — 100+ pluggable detection rules, togglable and tunable per organization
-- 📧 **Automated Email Invitations** — professional onboarding flow via SMTP (Brevo ready)
-- ☁️ **Cloud Deployment Ready** — full-stack preparation for Render, Vercel, Supabase, and Upstash.
+- 📧 **Automated Email Invitations** — professional onboarding flow via Brevo Transactional API
+- ☁️ **Fully Cloud Operational** — Live on Render (Backend), Vercel (Frontend), Supabase (DB), and Upstash (Redis).
 
 > **What does Version 26.3.1 mean?**
-> `26` = Year 2026, `3` = Month of March, `1` = Production-ready cloud-prepped release.
+> `26` = Year 2026, `3` = Month of March, `1` = Production-ready cloud release.
 
-> **Note on Data:** The backend database was hosted entirely locally during development for data security. Snapshots of real PostgreSQL tables generated during testing are available in [`frontend/sentinel-admin/README.md`](frontend/sentinel-admin/README.md).
-
----
-
-## 2️⃣ Architecture Diagram
-
-```
+> **Data Status:** This project is fully connected to a live production database. Administrative activities are tracked in a dedicated audit trail, while security telemetry streams through a high-performance Redis```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         SENTINEL PLATFORM v26.3.0                       │
+│                         SENTINEL PLATFORM v26.3.1                       │
 │                                                                         │
-│  ┌─────────────────┐     SDK Middleware      ┌────────────────────┐    │
-│  │  demo/          │ ──── POST /events/log ──▶│  Sentinel Core     │    │
-│  │  acme-portal    │     (API Key Auth)        │  (Fastify / Node)  │    │
-│  │  :4000          │                           │  :3000             │    │
-│  └─────────────────┘                           │                    │    │
-│                                                │  ┌─────────────┐  │    │
-│  ┌─────────────────┐     WebSocket Push        │  │  BullMQ     │  │    │
-│  │  frontend/      │ ◀──── ws://localhost ─────│  │  Workers    │  │    │
-│  │  sentinel-admin │                           │  └─────┬───────┘  │    │
-│  │  :5173          │     REST API (JWT)         │        │          │    │
-│  │  (React/Vite)   │ ◀──────────────────────── │  Detection Engine │    │
-│  └─────────────────┘                           │  (7 Rules)        │    │
-│                                                └────────┬───────────┘    │
-│                                                         │               │
-│                          ┌──────────────────────────────┤               │
-│                          ▼                              ▼               │
-│                  ┌──────────────┐             ┌──────────────────┐      │
-│                  │  PostgreSQL  │             │  Redis           │      │
-│                  │  (Primary DB)│             │  Pub/Sub + Cache │      │
-│                  └──────────────┘             └──────────────────┘      │
+│  ┌─────────────────┐      HTTPS / REST      ┌────────────────────┐      │
+│  │  Vercel         │ ◀─── (JWT / API Key) ──▶│  Render            │      │
+│  │  (Frontend)     │                        │  (Backend API)     │      │
+│  └─────────────────┘      WebSocket Push     └─────────┬──────────┘      │
+│          ▲           ◀────── /ws ───────────┘          │                │
+│          │                                             │                │
+│  ┌───────┴─────────┐                         ┌─────────▼───────────┐    │
+│  │  Upstash        │ ◀─── Pub/Sub Channel ──▶│  Supabase           │    │
+│  │  (Redis)        │                         │  (PostgreSQL)       │    │
+│  └─────────────────┘                         └─────────────────────┘    │
 │                                                                         │
-│  Observability: Prometheus ──▶ Grafana                                  │
+│  Mailing: Brevo API (Transactional)                                     │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
-
+                           │               │
 ### Technical Data Flow
-1. **Ingest** — An attacker hits `demo/acme-portal`. The built-in SDK middleware fires a POST to `/events/log` with an API Key.
-2. **Queue** — Fastify accepts the payload and pushes it to a BullMQ worker queue without blocking.
-3. **Analyse** — A background worker runs the event through all 7 active detection rules, computing a `risk_score` (0–100).
-4. **Persist** — The scored event is written to PostgreSQL. If score > alert threshold, a Security Alert row is created.
-5. **Broadcast** — Redis publishes the new event to an open Pub/Sub channel.
-6. **Visualise** — Every connected Sentinel Admin Console receives a WebSocket push — the analyst sees the event appear instantly, no refresh needed.
+1. **Ingest** — An attacker hits your corporate portal. The Sentinel SDK/Middleware fires a POST to `/events/log`.
+2. **Queue** — Fastify accepts the payload and pushes it to a BullMQ worker queue.
+3. **Analyse** — A background worker runs the event through all 7 active detection rules, computing a `risk_score`.
+4. **Persist** — The scored event is written to Supabase (PostgreSQL).
+5. **Broadcast** — Upstash (Redis) publishes the new event and audit logs to open Pub/Sub channels.
+6. **Visualise** — The Vercel-hosted Admin Console receives a WebSocket push instantly.
 
 ---
 
@@ -110,7 +94,13 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 ### ⚙️ Configuration & Audit
 - Toggle individual detection rules on/off per organization
 - Configurable data retention policies
-- Full organization-wide audit trail for all admin actions
+- **Live Management Stream** — Separate WebSocket channel for administrative actions (Invites, User management)
+- Full organization-wide audit trail with real-time broadcasting
+
+### 📧 Transactional Mailer (Brevo)
+- **Invite System** — Professional onboarding with custom HTML templates.
+- **REST API Integration** — Uses Brevo's V3 HTTP/REST API for high reliability and to bypass SMTP port restrictions in cloud environments (like Render).
+- **Asynchronous Delivery** — Emails are triggered in the background to ensure no latency for the admin UI.
 
 ---
 

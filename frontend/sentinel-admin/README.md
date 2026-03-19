@@ -1,6 +1,6 @@
-# Sentinel Admin Console (Version 26.3.0)
+# Sentinel Admin Console (Version 26.3.1)
 
-This is the frontend React + Vite application for the Sentinel Cybersecurity Telemetry platform. This admin console allows security analysts to monitor live machine-to-machine telemetry, detect brute-force and scanner attacks, and manage organizational API access in real-time.
+This is the production-ready frontend for the Sentinel Cybersecurity Platform, deployed on Vercel and connected to a live Render/Supabase/Upstash backend.
 
 **Note:** This is a personal project intended for demonstration purposes.
 
