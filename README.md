@@ -5,9 +5,9 @@
 
 ### 🌐 Live Production Deployment
 - **SOC Dashboard (Vercel):** [https://sentinel-admin-demo.vercel.app](https://sentinel-admin-demo.vercel.app)
-- **API Core (Render):** [https://sentinel-core-dsey.onrender.com](https://sentinel-core-dsey.onrender.com)
-- **Database:** Supabase (AWS ap-southeast-1)
-- **Real-time Layer:** Upstash Serverless Redis
+- **API Core:** Private Service on **Render**
+- **Database:** **Supabase** (AWS ap-southeast-1)
+- **Real-time Layer:** **Upstash** (Serverless Redis)
 
 ---
 
