@@ -1,25 +1,5 @@
-import nodemailer from 'nodemailer';
-import { config } from '../config/index.js';
-
-let transporter: nodemailer.Transporter | null = null;
-
-// Initialize mailer only if env vars exist
-if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT || 587),
-        secure: process.env.SMTP_PORT === '465',
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-        },
-        connectionTimeout: 10000,  // 10s to establish connection
-        greetingTimeout: 10000,    // 10s for SMTP greeting
-        socketTimeout: 15000,      // 15s for socket inactivity
-        logger: false,
-        debug: false
-    });
-}
+// Uses Brevo Transactional Email REST API (HTTPS/443) instead of SMTP
+// Render free tier blocks outbound SMTP (port 587), so HTTP API is required.
 
 function getInviteTemplate(inviteLink: string, orgName: string, role: string, message?: string) {
     const messageHtml = message ? `
@@ -56,41 +36,56 @@ function getInviteTemplate(inviteLink: string, orgName: string, role: string, me
 
 export class MailerService {
     static async sendInvite(toEmail: string, rawToken: string, orgName: string, role: string, message?: string) {
-        // Send to frontend via the correct /invite/:token route
         const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const inviteLink = `${baseUrl}/invite/${rawToken}`;
 
-        if (!transporter) {
+        const apiKey = process.env.BREVO_API_KEY;
+
+        // No API key configured — dev mode fallback
+        if (!apiKey) {
             console.log('\n' + '='.repeat(60));
-            console.log('  📧  INVITE LINK (SMTP not configured — dev mode)');
+            console.log('  📧  INVITE LINK (BREVO_API_KEY not set — dev mode)');
             console.log('='.repeat(60));
             console.log(`  To:      ${toEmail}`);
             console.log(`  Org:     ${orgName}`);
             console.log(`  Role:    ${role}`);
             console.log(`  Link:    ${inviteLink}`);
             console.log('='.repeat(60) + '\n');
-            console.log('  👆 Share this link with the invitee to accept the invitation.');
-            console.log('='.repeat(60) + '\n');
             return;
         }
 
+        const senderName = process.env.SMTP_FROM_NAME || 'Sentinel Core Security';
+        const senderEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || '';
+
+        const payload = {
+            sender: { name: senderName, email: senderEmail },
+            to: [{ email: toEmail }],
+            subject: `You have been invited to ${orgName} on Sentinel Core`,
+            htmlContent: getInviteTemplate(inviteLink, orgName, role, message)
+        };
+
         try {
-            await transporter.sendMail({
-                from: process.env.SMTP_FROM || '"Sentinel Core" <noreply@sentinel.local>',
-                to: toEmail,
-                subject: `You have been invited to ${orgName} on Sentinel Core`,
-                html: getInviteTemplate(inviteLink, orgName, role, message),
-                // Disable SendGrid / Mailgun tracking heuristics headers for privacy hardening
+            const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+                method: 'POST',
                 headers: {
-                    'X-Mailgun-Track': 'no',
-                    'X-Mailgun-Track-Clicks': 'no',
-                    'X-Mailgun-Track-Opens': 'no',
-                    'X-SMTPAPI': '{"filters":{"clicktrack":{"settings":{"enable":0}},"opentrack":{"settings":{"enable":0}}}}'
-                }
+                    'accept': 'application/json',
+                    'api-key': apiKey,
+                    'content-type': 'application/json'
+                },
+                body: JSON.stringify(payload),
+                signal: AbortSignal.timeout(15000) // 15s timeout
             });
-            console.log(`✅ Sent invite email to ${toEmail}`);
-        } catch (error) {
-            console.error(`❌ Failed to send invite email to ${toEmail}:`, error);
+
+            if (!response.ok) {
+                const errorBody = await response.text();
+                console.error(`[Mailer] ❌ Brevo API error (${response.status}): ${errorBody}`);
+            } else {
+                const result = await response.json() as { messageId?: string };
+                console.log(`[Mailer] ✅ Invite sent to ${toEmail} via Brevo API. MessageId: ${result?.messageId}`);
+            }
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
+            console.error(`[Mailer] ❌ Failed to send invite to ${toEmail}: ${msg}`);
         }
     }
 }
