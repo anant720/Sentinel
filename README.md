@@ -11,7 +11,17 @@
 
 ---
 
-## 1️⃣ Project Overview
+## 🚀 What's New in v26.3.2: End-to-End Encryption (E2EE)
+
+This release introduces major security enhancements focused on data privacy and sovereign identity.
+
+- **🔐 End-to-End Encrypted Telemetry**: Sensitive event payloads are now encrypted client-side using **AES-GCM** before ingestion. The server only sees ciphertext.
+- **🛡️ Client-Side Password Hashing**: Passwords are now hashed locally (SHA-256) before transmission, ensuring raw credentials never touch our API.
+- **💠 Session-Only Master Keys**: Encryption keys are derived using **PBKDF2** and stored strictly in-memory (Zustand state). They are never persisted to a disk or database.
+- **⚡ Transparent Decryption**: The SOC Dashboard and Live Events stream now perform automated on-the-fly decryption, providing a seamless experience while maintaining true E2EE.
+- **🔄 Zero-Downtime Migration**: Existing legacy accounts can upgrade to E2EE mode with a single click in their security settings.
+
+---
 
 **Sentinel** is a professional-grade, multi-tenant **cybersecurity telemetry and monitoring platform** built from the ground up. It provides real-time visibility into an organization's security posture by tracking login failures, parsing API request streams, mapping geographic IP origins, and catching brute-force scanners before they breach the perimeter.
 
