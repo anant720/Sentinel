@@ -32,10 +32,13 @@ export const IngestEventSchema = z.object({
         event_type: z.string().min(1, 'event_type must not be empty').max(100),
         timestamp: z.number().int().positive('timestamp must be a positive Unix epoch ms'),
         nonce: z.string().uuid('nonce must be a valid UUID'),
-        payload: z.record(z.unknown()).refine(
-            (p) => Buffer.byteLength(JSON.stringify(p)) <= MAX_PAYLOAD_BYTES,
-            { message: `Payload exceeds maximum size of ${MAX_PAYLOAD_BYTES} bytes` },
-        )
+        payload: z.union([
+            z.record(z.unknown()).refine(
+                (p) => Buffer.byteLength(JSON.stringify(p)) <= MAX_PAYLOAD_BYTES,
+                { message: `Payload exceeds maximum size of ${MAX_PAYLOAD_BYTES} bytes` },
+            ),
+            z.string().max(MAX_PAYLOAD_BYTES, `Payload exceeds maximum size of ${MAX_PAYLOAD_BYTES} bytes`)
+        ])
     }),
     signature: z.string().min(1),
 });

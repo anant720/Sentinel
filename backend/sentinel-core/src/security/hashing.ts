@@ -28,12 +28,26 @@ export async function hashPassword(password: string): Promise<string> {
 /**
  * Compare a plaintext password against a bcrypt hash.
  * Timing-safe via bcrypt's constant-time comparison.
+ * Note: Legacy mode (server sees raw password over TLS).
  */
 export async function comparePassword(
     password: string,
     hash: string,
 ): Promise<boolean> {
     return bcrypt.compare(password, hash);
+}
+
+/**
+ * Compare a client-side hashed password against a bcrypt hash.
+ * This is used for E2EE mode where the raw password never leaves the client.
+ */
+export async function comparePasswordV2(
+    clientHash: string,
+    storedHash: string,
+): Promise<boolean> {
+    // clientHash is the hex-encoded SHA-256 (or similar) from the client.
+    // The storedHash is the bcrypt(clientHash) on the server.
+    return bcrypt.compare(clientHash, storedHash);
 }
 
 // ── Token hashing (SHA-256) ─────────────────────────────────────────────────

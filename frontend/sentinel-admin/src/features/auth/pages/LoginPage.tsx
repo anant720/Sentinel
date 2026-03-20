@@ -20,9 +20,12 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const { accessToken } = await AuthService.login(email, password);
+      const { accessToken, e2ee } = await AuthService.login(email, password);
       // Save the token first so getMe() can use it in its Authorization header
       setAccessToken(accessToken);
+      
+      // Update E2EE status in store
+      useAuthStore.getState().setE2eeEnabled(!!e2ee?.enabled);
       
       // Fetch the real user profile from the backend
       const { user: profile } = await AuthService.getMe();

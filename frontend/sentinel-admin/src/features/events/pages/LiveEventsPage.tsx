@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardService } from '../../../lib/services/dashboard.service';
 import { OrgService } from '../../../lib/services/org.service';
 import { useSecurityStream } from '../../../hooks/useSecurityStream';
-import { Activity, Search, Download, ShieldAlert, Database, Wifi, WifiOff } from 'lucide-react';
+import { Activity, Search, Download, ShieldAlert, Database, Wifi, WifiOff, X, MapPin, Terminal } from 'lucide-react';
 import { useToast } from '../../../components/ui/ToastProvider';
-import { X, MapPin, Terminal } from 'lucide-react';
+import { useAuthStore } from '../../../lib/store';
 
 export default function LiveEventsPage() {
   const { showToast } = useToast();
@@ -67,7 +67,6 @@ export default function LiveEventsPage() {
   const totalCount = eventsResponse?.total || mergedEvents.length;
   const isHealthy = healthData?.status === 'ready';
 
-  // Remove "Stream Source" from these top stats as requested
   const stats = [
     { label: 'Total Events', value: totalCount.toLocaleString(), color: 'text-gray-400', icon: Activity },
     { label: 'Critical Threats', value: mergedEvents.filter((e: any) => Number(e.risk_score ?? e.payload?.risk_score ?? 0) > 80).length, color: 'text-red-500', icon: ShieldAlert },
@@ -171,76 +170,13 @@ export default function LiveEventsPage() {
                   {searchQuery ? 'No events match your search.' : 'No events yet. Waiting for telemetry…'}
                 </td></tr>
               )}
-              {filteredEvents.map((event: any, i: number) => {
-                // Backend returns flat columns; WS events have nested payload — handle both
-                const email = event.email || event.payload?.email || event.payload?.user_email || '—';
-                const ipAddress = event.ip_address || event.payload?.ip_address || '—';
-                const rawUserAgent = event.user_agent || event.payload?.user_agent || 'Unknown agent';
-                
-                const parseUserAgent = (ua: string) => {
-                  if (!ua || ua === 'Unknown agent') return ua;
-                  if (ua.includes('Edg/')) return 'Edge';
-                  if (ua.includes('Brave/') || ua.match(/Chrome\/.* Safari\/.*$/) && !ua.includes('Chromium')) return 'Chrome / Brave';
-                  if (ua.includes('Chrome/')) return 'Chrome';
-                  if (ua.includes('Firefox/')) return 'Firefox';
-                  if (ua.includes('Safari/') && !ua.includes('Chrome/')) return 'Safari';
-                  return ua.length > 30 ? ua.substring(0, 30) + '...' : ua;
-                };
-                const userAgent = parseUserAgent(rawUserAgent);
-
-                const sourceApp = event.source_app || event.payload?.source_app || '—';
-                const destination = event.destination || event.payload?.destination || '/';
-                const riskScore = Number(event.risk_score ?? event.payload?.risk_score ?? 0);
-                const eventType = event.event_type || event.type || 'EVENT';
-                const streamSource = event.payload?.stream_source || 'Sentinel Console';
-                const location = event.payload?.location ? `${event.payload.location.city}, ${event.payload.location.country}` : 'Unknown Location';
-
-                return (
-                  <tr key={event.id || i} onClick={() => setSelectedEvent(event)} className="hover:bg-white/[0.05] transition-colors group cursor-pointer relative">
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${riskScore > 70 ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}>
-                        {eventType}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-primary/90">
-                        <Terminal size={12} />
-                        {streamSource}
-                      </div>
-                      <div className="flex items-center gap-1 text-[9px] text-gray-500 mt-1 uppercase tracking-wider">
-                        <MapPin size={10} />
-                        {location}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-xs font-bold text-gray-200">{email}</div>
-                      <div className="text-[9px] text-gray-500 uppercase tracking-tighter">ID: {String(event.id ?? '').substring(0, 8)}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                         <span className="text-[10px] font-mono text-gray-400">{ipAddress}</span>
-                      </div>
-                      <div className="text-[9px] text-gray-500 mt-1 truncate max-w-[150px]" title={userAgent}>{userAgent}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-[10px] text-primary/80 font-bold max-w-[150px] truncate">{sourceApp}</div>
-                      <div className="text-[9px] text-gray-600 font-mono mt-0.5">{destination}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                       <div className="flex items-center gap-3">
-                          <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden max-w-[60px]">
-                             <div className={`h-full rounded-full ${riskScore > 70 ? 'bg-red-500' : riskScore > 30 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${riskScore}%` }} />
-                          </div>
-                          <span className={`text-[11px] font-bold ${riskScore > 70 ? 'text-red-500' : riskScore > 30 ? 'text-yellow-500' : 'text-green-500'}`}>{riskScore}</span>
-                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-right tabular-nums">
-                      <div className="text-[10px] font-bold text-gray-400">{new Date(event.created_at).toLocaleTimeString()}</div>
-                      <div className="text-[9px] text-gray-600 uppercase tracking-tighter">{new Date(event.created_at).toLocaleDateString()}</div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {filteredEvents.map((event: any, i: number) => (
+                <DecryptedTableRow 
+                  key={event.id || i} 
+                  event={event} 
+                  onSelect={setSelectedEvent} 
+                />
+              ))}
             </tbody>
           </table>
         </div>
@@ -295,5 +231,100 @@ export default function LiveEventsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function DecryptedTableRow({ event, onSelect }: { event: any, onSelect: (e: any) => void }) {
+  const [decryptedPayload, setDecryptedPayload] = useState<any>(null);
+  const [isDecrypting, setIsDecrypting] = useState(false);
+  const masterKey = useAuthStore(s => s.masterKey);
+
+  useEffect(() => {
+    async function decrypt() {
+      if (typeof event.payload === 'string' && masterKey) {
+        setIsDecrypting(true);
+        try {
+          const { CryptoService } = await import('../../../lib/services/crypto.service');
+          const decrypted = await CryptoService.decryptPayload(event.payload, masterKey);
+          setDecryptedPayload(decrypted);
+        } catch (err) {
+          console.error('Decryption failed for event:', event.id, err);
+        } finally {
+          setIsDecrypting(false);
+        }
+      }
+    }
+    decrypt();
+  }, [event.payload, masterKey, event.id]);
+
+  const payload = decryptedPayload || (typeof event.payload === 'object' ? event.payload : {});
+  const email = event.email || payload?.email || payload?.user_email || (isDecrypting ? 'Decrypting...' : '—');
+  const ipAddress = event.ip_address || payload?.ip_address || '—';
+  const rawUserAgent = event.user_agent || payload?.user_agent || 'Unknown agent';
+  
+  const parseUserAgent = (ua: string) => {
+    if (!ua || ua === 'Unknown agent') return ua;
+    if (ua.includes('Edg/')) return 'Edge';
+    if (ua.includes('Brave/') || ua.match(/Chrome\/.* Safari\/.*$/) && !ua.includes('Chromium')) return 'Chrome / Brave';
+    if (ua.includes('Chrome/')) return 'Chrome';
+    if (ua.includes('Firefox/')) return 'Firefox';
+    if (ua.includes('Safari/') && !ua.includes('Chrome/')) return 'Safari';
+    return ua.length > 30 ? ua.substring(0, 30) + '...' : ua;
+  };
+  const userAgent = parseUserAgent(rawUserAgent);
+
+  const sourceApp = event.source_app || payload?.source_app || '—';
+  const destination = event.destination || payload?.destination || '/';
+  const riskScore = Number(event.risk_score ?? payload?.risk_score ?? 0);
+  const eventType = event.event_type || event.type || 'EVENT';
+  const streamSource = payload?.stream_source || 'Sentinel Console';
+  const location = payload?.location ? `${payload.location.city}, ${payload.location.country}` : 'Unknown Location';
+
+  const displayEvent = { ...event, payload };
+
+  return (
+    <tr onClick={() => onSelect(displayEvent)} className="hover:bg-white/[0.05] transition-colors group cursor-pointer relative">
+      <td className="px-6 py-4">
+        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${riskScore > 70 ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}>
+          {eventType}
+        </span>
+      </td>
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-primary/90">
+          <Terminal size={12} />
+          {streamSource}
+        </div>
+        <div className="flex items-center gap-1 text-[9px] text-gray-500 mt-1 uppercase tracking-wider">
+          <MapPin size={10} />
+          {location}
+        </div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="text-xs font-bold text-gray-200">{email}</div>
+        <div className="text-[9px] text-gray-500 uppercase tracking-tighter">ID: {String(event.id ?? '').substring(0, 8)}</div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-gray-400">{ipAddress}</span>
+        </div>
+        <div className="text-[9px] text-gray-500 mt-1 truncate max-w-[150px]" title={userAgent}>{userAgent}</div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="text-[10px] text-primary/80 font-bold max-w-[150px] truncate">{sourceApp}</div>
+        <div className="text-[9px] text-gray-600 font-mono mt-0.5">{destination}</div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden max-w-[60px]">
+            <div className={`h-full rounded-full ${riskScore > 70 ? 'bg-red-500' : riskScore > 30 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${riskScore}%` }} />
+          </div>
+          <span className={`text-[11px] font-bold ${riskScore > 70 ? 'text-red-500' : riskScore > 30 ? 'text-yellow-500' : 'text-green-500'}`}>{riskScore}</span>
+        </div>
+      </td>
+      <td className="px-6 py-4 text-right tabular-nums">
+        <div className="text-[10px] font-bold text-gray-400">{new Date(event.created_at).toLocaleTimeString()}</div>
+        <div className="text-[9px] text-gray-600 uppercase tracking-tighter">{new Date(event.created_at).toLocaleDateString()}</div>
+      </td>
+    </tr>
   );
 }

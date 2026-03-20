@@ -29,7 +29,7 @@ const ingestSchema = z.object({
         event_type: z.string().min(1),
         timestamp: z.number().int().positive(),
         nonce: z.string().uuid(),
-        payload: z.record(z.unknown())
+        payload: z.union([z.record(z.unknown()), z.string()])
     }),
     signature: z.string().min(1),
 });

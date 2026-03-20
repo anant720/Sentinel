@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DashboardService } from '../../../lib/services/dashboard.service';
+import { useAuthStore } from '../../../lib/store';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { 
   Shield, 
@@ -253,21 +254,53 @@ export default function DashboardPage() {
               </div>
             ) : (
               recentEvents.map((event: any) => (
-                <div key={event.id} className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-lg">
-                  <div className={`p-1.5 rounded bg-white/5 ${(event.risk_score || 0) > 70 ? 'text-red-500' : 'text-primary'}`}>
-                    <Shield size={12} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start">
-                      <span className="text-[10px] font-bold text-gray-300 truncate uppercase">{event.event_type || event.type}</span>
-                      <span className="text-[9px] text-gray-600 tabular-nums">{new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                    </div>
-                    <div className="text-[10px] text-gray-500 truncate mt-0.5">{event.payload?.email || event.payload?.user_email || 'System'}</div>
-                  </div>
-                </div>
+                <DecryptedEventItem key={event.id} event={event} />
               ))
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DecryptedEventItem({ event }: { event: any }) {
+  const masterKey = useAuthStore(state => state.masterKey);
+  const [decryptedPayload, setDecryptedPayload] = useState<any>(event.payload);
+  const [isDecrypting, setIsDecrypting] = useState(false);
+
+  useEffect(() => {
+    async function decrypt() {
+      if (typeof event.payload === 'string' && masterKey) {
+        setIsDecrypting(true);
+        try {
+          const { CryptoService } = await import('../../../lib/services/crypto.service');
+          const decrypted = await CryptoService.decryptPayload(event.payload, masterKey);
+          setDecryptedPayload(decrypted);
+        } catch (err) {
+          console.error('Decryption failed for event', event.id, err);
+        } finally {
+          setIsDecrypting(false);
+        }
+      } else {
+        setDecryptedPayload(event.payload);
+      }
+    }
+    decrypt();
+  }, [event.payload, masterKey]);
+
+  return (
+    <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-lg">
+      <div className={`p-1.5 rounded bg-white/5 ${(event.risk_score || 0) > 70 ? 'text-red-500' : 'text-primary'}`}>
+        <Shield size={12} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex justify-between items-start">
+          <span className="text-[10px] font-bold text-gray-300 truncate uppercase">{event.event_type || event.type}</span>
+          <span className="text-[9px] text-gray-600 tabular-nums">{new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+        </div>
+        <div className="text-[10px] text-gray-500 truncate mt-0.5">
+          {isDecrypting ? 'Decrypting...' : (decryptedPayload?.email || decryptedPayload?.user_email || 'System')}
         </div>
       </div>
     </div>

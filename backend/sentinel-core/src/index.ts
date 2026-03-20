@@ -254,6 +254,7 @@ export async function setupServer(fastify: FastifyInstance) {
             // Auth — no extra RBAC needed
             protected_.post('/auth/logout', AuthController.logout);
             protected_.get('/auth/me', UserController.getMe);
+            protected_.post('/auth/upgrade-e2ee', AuthController.upgradeToE2EE);
 
             // Organizations — requires ORG_CREATE, ORG_READ, DEVICE_ENROLL_TOKEN, USER_MANAGE permissions
             protected_.register(async (admin: FastifyInstance) => {

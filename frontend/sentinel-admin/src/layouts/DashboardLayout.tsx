@@ -176,6 +176,17 @@ export default function DashboardLayout() {
             <div className="flex items-center gap-6">
               
               <div className="flex items-center gap-3 border-l border-white/10 pl-6">
+                {/* E2EE Status */}
+                {!useAuthStore.getState().e2eeEnabled && (
+                  <div 
+                    onClick={() => navigate('/settings/security')}
+                    className="flex items-center gap-2 px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-full cursor-pointer hover:bg-yellow-500/20 transition-all group"
+                  >
+                    <ShieldAlert size={12} className="text-yellow-500 group-hover:scale-110 transition-transform" />
+                    <span className="text-[10px] font-bold text-yellow-500 uppercase tracking-tighter">Upgrade Security available</span>
+                  </div>
+                )}
+                
                 {/* Notification Bell */}
                 <div className="relative">
                   <button 

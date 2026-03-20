@@ -6,7 +6,7 @@
 import { db } from '../lib/database.js';
 import { config } from '../config/index.js';
 import { logger } from '../lib/logger.js';
-import { hashPassword, comparePassword, hashToken } from '../security/index.js';
+import { hashPassword, comparePassword, comparePasswordV2, hashToken } from '../security/index.js';
 
 export class AuthService {
     static async hashPassword(password: string): Promise<string> {
@@ -15,6 +15,19 @@ export class AuthService {
 
     static async comparePassword(password: string, hash: string): Promise<boolean> {
         return comparePassword(password, hash);
+    }
+
+    static async comparePasswordV2(clientHash: string, hash: string): Promise<boolean> {
+        return comparePasswordV2(clientHash, hash);
+    }
+
+    static async upgradeUserToE2EE(userId: string, newClientHash: string) {
+        const newStoredHash = await hashPassword(newClientHash);
+        await db.query(
+            "UPDATE users SET password_hash = $1, password_version = 'v2', e2ee_enabled = true WHERE id = $2",
+            [newStoredHash, userId]
+        );
+        logger.info({ userId }, 'User upgraded to E2EE authentication');
     }
 
     static async findUserByEmail(email: string) {

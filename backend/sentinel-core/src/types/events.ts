@@ -140,6 +140,13 @@ export type CanonicalEvent = z.infer<typeof CanonicalEventSchema>;
  * Returns { valid: true } or { valid: false, errors: ZodFormattedError }.
  */
 export function validateCanonicalEvent(event_type: string, payload: unknown): { valid: true } | { valid: false; errors: unknown } {
+    // ── E2EE Bypass ──────────────────────────────────────────────────────────
+    // If the payload is a string, it's an encrypted E2EE payload.
+    // We allow it to pass as long as it's not empty, bypassing the JSON schema.
+    if (typeof payload === 'string' && payload.length > 0) {
+        return { valid: true };
+    }
+
     const parsed = CanonicalEventSchema.safeParse({ event_type, payload });
     if (parsed.success) return { valid: true };
     return { valid: false, errors: parsed.error.format() };

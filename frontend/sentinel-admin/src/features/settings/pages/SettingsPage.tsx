@@ -168,7 +168,7 @@ export default function SettingsPage() {
 
       {/* Settings Modal Layer */}
       {activeMenu && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-full max-w-lg bg-[#0a0d14] border border-white/10 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-6 border-b border-white/5">
               <h2 className="text-lg font-bold text-white tracking-tight capitalize">
@@ -182,14 +182,74 @@ export default function SettingsPage() {
               </button>
             </div>
             
-            <div className="p-8 text-center space-y-4">
-              <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center border border-primary/20">
-                <Settings className="text-primary" size={28} />
-              </div>
-              <h3 className="text-sm font-bold text-gray-200">Coming Soon</h3>
-              <p className="text-xs text-gray-500 max-w-[280px] mx-auto leading-relaxed">
-                We are currently building out the `{activeMenu}` configuration panel. Check back in the next release.
-              </p>
+            <div className="p-8">
+              {activeMenu === 'security' && !useAuthStore.getState().e2eeEnabled ? (
+                <div className="space-y-6">
+                  <div className="w-16 h-16 mx-auto bg-yellow-500/10 rounded-full flex items-center justify-center border border-yellow-500/20">
+                    <Shield className="text-yellow-500" size={28} />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-sm font-bold text-gray-200">Upgrade to End-to-End Encryption</h3>
+                    <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                      Secure your account with E2EE. This will ensure your password and sensitive telemetry are never visible to the server.
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                     <div className="space-y-2 text-left">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Confirm Password</label>
+                        <input 
+                          type="password"
+                          id="upgrade-password"
+                          placeholder="Enter your current password"
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                        />
+                     </div>
+                     <button 
+                       onClick={async () => {
+                         const pwdInput = document.getElementById('upgrade-password') as HTMLInputElement;
+                         const password = pwdInput.value;
+                         if (!password) return showToast('Password is required', 'error');
+                         
+                         try {
+                           const { AuthService } = await import('../../../lib/services/auth.service');
+                           const { CryptoService } = await import('../../../lib/services/crypto.service');
+                           
+                           // 1. Upgrade on server
+                           await AuthService.upgradeToE2EE(password);
+                           
+                           // 2. Derive & Store Master Key locally
+                           const masterKey = await CryptoService.deriveMasterKey(password, user?.email || '');
+                           useAuthStore.getState().setMasterKey(masterKey);
+                           useAuthStore.getState().setE2eeEnabled(true);
+                           
+                           showToast('Security upgraded to E2EE successfully!', 'success');
+                           setActiveMenu(null);
+                         } catch (err: any) {
+                           showToast(err.response?.data?.message || 'Upgrade failed', 'error');
+                         }
+                       }}
+                       className="w-full py-3 bg-primary hover:bg-primary-dark text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-primary/20"
+                     >
+                       Begin Secure Upgrade
+                     </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center border border-primary/20">
+                    {activeMenu === 'security' && useAuthStore.getState().e2eeEnabled ? <Shield className="text-primary" size={28} /> : <Settings className="text-primary" size={28} />}
+                  </div>
+                  <h3 className="text-sm font-bold text-gray-200">
+                    {activeMenu === 'security' && useAuthStore.getState().e2eeEnabled ? 'E2EE Protection Active' : 'Coming Soon'}
+                  </h3>
+                  <p className="text-xs text-gray-500 max-w-[280px] mx-auto leading-relaxed">
+                    {activeMenu === 'security' && useAuthStore.getState().e2eeEnabled 
+                      ? 'Your account is fully protected with End-to-End Encryption. Telemetry is decrypted locally using your session-only master key.'
+                      : `We are currently building out the ${activeMenu} configuration panel. Check back in the next release.`}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="p-6 border-t border-white/5 bg-white/[0.02] flex justify-end">

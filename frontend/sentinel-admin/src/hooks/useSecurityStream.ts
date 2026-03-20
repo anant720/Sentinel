@@ -49,10 +49,23 @@ export function useSecurityStream({ maxEvents = 100 }: UseSecurityStreamOptions 
           setError(null);
         };
 
-        ws.onmessage = (msg) => {
+        ws.onmessage = async (msg) => {
           try {
             const data = JSON.parse(msg.data);
             if (data.type === 'connected') return;
+
+            // E2EE Decryption Attempt
+            if (typeof data.payload === 'string') {
+              const masterKey = useAuthStore.getState().masterKey;
+              if (masterKey) {
+                const { CryptoService } = await import('../lib/services/crypto.service');
+                const decrypted = await CryptoService.decryptPayload(data.payload, masterKey);
+                if (decrypted) {
+                  data.payload = decrypted;
+                }
+              }
+            }
+
             setEvents((prev) => [data, ...prev].slice(0, maxEvents));
           } catch (err) {
             console.warn('⚠️ WS Message parse error:', err);

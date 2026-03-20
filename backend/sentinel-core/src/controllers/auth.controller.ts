@@ -15,6 +15,7 @@ import { z } from 'zod';
 const loginSchema = z.object({
     email: z.string().email(),
     password: z.string().min(8),
+    is_client_hashed: z.boolean().optional().default(false),
 });
 
 const refreshSchema = z.object({
@@ -45,7 +46,13 @@ export class AuthController {
             return reply.code(403).send({ error: 'Forbidden', message: 'Account locked. Try again later.' });
         }
 
-        const isMatch = await AuthService.comparePassword(password, user.password_hash);
+        let isMatch = false;
+        if (user.password_version === 'v2') {
+            isMatch = await AuthService.comparePasswordV2(password, user.password_hash);
+        } else {
+            isMatch = await AuthService.comparePassword(password, user.password_hash);
+        }
+
         if (!isMatch) {
             await AuthService.handleFailedLogin(user.id);
             await EventService.publish({
@@ -148,7 +155,25 @@ export class AuthController {
             console.error('Login Event Insert Failed:', err);
         }
 
-        return { accessToken };
+        return { 
+            accessToken, 
+            e2ee: {
+                enabled: !!user.e2ee_enabled,
+                version: user.password_version
+            }
+        };
+    }
+
+    static async upgradeToE2EE(request: FastifyRequest, reply: FastifyReply) {
+        const { user_id } = request.user as JWTPayload;
+        const body = request.body as { client_hash: string };
+        
+        if (!body.client_hash) {
+            return reply.code(400).send({ error: 'Bad Request', message: 'client_hash is required' });
+        }
+
+        await AuthService.upgradeUserToE2EE(user_id, body.client_hash);
+        return { message: 'Security upgraded to E2EE' };
     }
 
     static async refresh(request: FastifyRequest, reply: FastifyReply) {

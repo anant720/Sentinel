@@ -1,5 +1,5 @@
 # 🛡️ Sentinel Security Platform
-**Version 26.3.1 — A Project by Anant Suthar**
+**Version 26.3.2 — A Project by Anant Suthar**
 
 ---
 
@@ -33,7 +33,7 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         SENTINEL PLATFORM v26.3.1                       │
+│                         SENTINEL PLATFORM v26.3.2                       │
 │                                                                         │
 │  ┌─────────────────┐      HTTPS / REST      ┌────────────────────┐      │
 │  │  Vercel         │ ◀─── (JWT / API Key) ──▶│  Render            │      │
