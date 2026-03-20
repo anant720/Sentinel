@@ -25,7 +25,9 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401 && !error.config._retry) {
+    const isLoginRequest = error.config.url?.includes('/auth/login');
+    
+    if (error.response?.status === 401 && !error.config._retry && !isLoginRequest) {
       error.config._retry = true;
       try {
         const userId = useAuthStore.getState().user?.id;
