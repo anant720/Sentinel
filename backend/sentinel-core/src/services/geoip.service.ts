@@ -103,7 +103,53 @@ export class GeoIPService {
     }
 
     /** Returns cache stats for monitoring. */
-    static getCacheStats() {
-        return { size: cache.size, maxSize: MAX_CACHE_SIZE };
+    static getStats() {
+        return {
+            cacheSize: cache.size,
+            maxSize: MAX_CACHE_SIZE
+        };
+    }
+
+    /**
+     * Performs reverse geocoding to turn coordinates into a human-readable address.
+     * Uses OpenStreetMap Nominatim (Free, requires User-Agent).
+     */
+    static async reverseGeocode(lat: number, lon: number): Promise<{ address: string, city: string } | null> {
+        if (!lat || !lon) return null;
+
+        const cacheKey = `geo:${lat.toFixed(4)},${lon.toFixed(4)}`;
+        if (cache.has(cacheKey)) return (cache.get(cacheKey) as any) as { address: string, city: string };
+
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 3000);
+
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
+            const response = await fetch(url, {
+                headers: { 'User-Agent': 'Sentinel/1.0 (Security Intelligence Platform)' },
+                signal: controller.signal
+            });
+            clearTimeout(timeout);
+
+            if (response.ok) {
+                const data = (await response.json()) as any;
+                if (data && data.display_name) {
+                    const addr = data.address;
+                    const cityName = addr.city || addr.town || addr.village || addr.suburb || '';
+                    
+                    const result = {
+                        address: data.display_name,
+                        city: cityName
+                    };
+                    
+                    cache.set(cacheKey, result as any);
+                    return result;
+                }
+            }
+        } catch (err) {
+            // Silently fail
+        }
+
+        return null;
     }
 }

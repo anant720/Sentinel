@@ -81,14 +81,25 @@ export class IngestionService {
         const { GeoIPService } = await import('./geoip.service.js');
         const geoLookup = await GeoIPService.lookup(clientIp || '');
 
-        // Merge sources: Override (Headers/Payload) > Lookup (API/DB)
+        // GPS Overrides (Coordinates)
+        const lat = parseFloat(geoOverride?.lat || payload.lat || payload.latitude);
+        const lon = parseFloat(geoOverride?.lon || payload.lon || payload.longitude || payload.lng || payload.long);
+        
+        // If we have GPS, do high-fidelity reverse geocoding
+        let gpsData: { address: string, city: string } | null = null;
+        if (!isNaN(lat) && !isNaN(lon)) {
+            gpsData = await GeoIPService.reverseGeocode(lat, lon);
+        }
+
+        // Merge sources: GPS (Address/City) > Override (Headers/Country) > Lookup (API/DB)
         const geo = {
             country: geoOverride?.country || geoLookup?.country || null,
             countryCode: geoOverride?.countryCode || geoLookup?.countryCode || null,
-            city: geoOverride?.city || geoLookup?.city || null,
-            lat: geoOverride?.lat || geoLookup?.lat || null,
-            lon: geoOverride?.lon || geoLookup?.lon || null,
-            isp: geoOverride?.isp || geoLookup?.isp || null
+            city: gpsData?.city || geoOverride?.city || geoLookup?.city || null,
+            lat: !isNaN(lat) ? lat : (geoLookup?.lat || null),
+            lon: !isNaN(lon) ? lon : (geoLookup?.lon || null),
+            isp: geoOverride?.isp || geoLookup?.isp || null,
+            address: gpsData?.address || null
         };
 
         const canonicalDict = Object.fromEntries(
@@ -100,8 +111,8 @@ export class IngestionService {
         const result = await db.query(
             `INSERT INTO events
                  (organization_id, device_id, event_type, payload, signature, integrity_hash, processed, 
-                  ip_address, geo_country, geo_country_code, geo_city, geo_lat, geo_lon, geo_isp)
-             VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8, $9, $10, $11, $12, $13)
+                  ip_address, geo_country, geo_country_code, geo_city, geo_lat, geo_lon, geo_isp, geo_address)
+             VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8, $9, $10, $11, $12, $13, $14)
              RETURNING id, created_at`,
             [
                 orgId, 
@@ -111,12 +122,13 @@ export class IngestionService {
                 signature, 
                 integrityHash, 
                 clientIp,
-                geo?.country || null,
-                geo?.countryCode || null,
-                geo?.city || null,
-                geo?.lat || null,
-                geo?.lon || null,
-                geo?.isp || null
+                geo.country,
+                geo.countryCode,
+                geo.city,
+                geo.lat,
+                geo.lon,
+                geo.isp,
+                geo.address
             ],
         );
 

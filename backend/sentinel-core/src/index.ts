@@ -503,6 +503,7 @@ export async function setupServer(fastify: FastifyInstance) {
                              geo_city,
                              geo_lat,
                              geo_lon,
+                             geo_address,
                              payload->>'user_agent'                  AS user_agent,
                              payload->>'source_app'                  AS source_app,
                              payload->>'destination'                 AS destination,
