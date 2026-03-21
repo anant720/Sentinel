@@ -21,6 +21,8 @@ export interface AccessTokenPayload {
     user_id: string;
     organization_id: string;
     role: Role;  // Typed as the Role enum — not a raw string
+    jti: string; // Unique identifier for the token
+    exp?: number; // Expiry timestamp (added by @fastify/jwt)
 }
 
 // ── @fastify/jwt plugin configuration ──────────────────────────────────────
@@ -69,7 +71,6 @@ export function getJwtConfig(): any {
     };
 }
 
-
 /**
  * Validates that a decoded token object matches the AccessTokenPayload shape.
  * Throws on malformed payloads before they reach controllers.
@@ -77,18 +78,17 @@ export function getJwtConfig(): any {
 export function validateTokenPayload(payload: unknown): AccessTokenPayload {
     const p = payload as Record<string, unknown>;
 
-    if (
-        typeof p?.user_id !== 'string' ||
-        typeof p?.organization_id !== 'string' ||
-        !isValidRole(p?.role)  // Rejects unknown roles at the JWT boundary
-    ) {
-        throw new Error('Malformed JWT payload: missing or invalid claims');
-    }
+    if (typeof p?.user_id !== 'string') throw new Error('Malformed JWT payload: user_id missing or invalid');
+    if (typeof p?.organization_id !== 'string') throw new Error('Malformed JWT payload: organization_id missing or invalid');
+    if (typeof p?.jti !== 'string') throw new Error('Malformed JWT payload: jti missing or invalid');
+    if (!isValidRole(p?.role)) throw new Error('Malformed JWT payload: role missing or invalid');
 
     return {
         user_id: p.user_id,
         organization_id: p.organization_id,
         role: p.role as Role,
+        jti: p.jti,
+        exp: p.exp as number,
     };
 }
 

@@ -49,7 +49,12 @@ export const AuthService = {
   },
 
   acceptInvite: async (payload: { invite_token: string; full_name: string; password: string }) => {
-    const { data } = await api.post('/organizations/accept-invite', payload);
+    // Hash password client-side for E2EE starting from account activation
+    const clientHash = await CryptoService.hashPasswordForAuth(payload.password);
+    const { data } = await api.post('/organizations/accept-invite', {
+      ...payload,
+      password: clientHash
+    });
     return data;
   },
 };

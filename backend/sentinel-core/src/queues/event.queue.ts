@@ -58,8 +58,13 @@ export interface EventJob {
  * @param orgId    Organization the event belongs to (from JWT, never from client)
  */
 export async function enqueueEvent(eventId: string, orgId: string): Promise<void> {
-    await eventQueue.add('process-event', { eventId, orgId });
-    logger.debug({ eventId, orgId }, 'Event enqueued');
+    const { isRedisHealthy } = await import('../lib/redis.js');
+    if (isRedisHealthy) {
+        await eventQueue.add('process-event', { eventId, orgId });
+        logger.debug({ eventId, orgId }, 'Event enqueued');
+    } else {
+        logger.warn({ eventId, orgId }, 'Redis unavailable -> event queuing skipped');
+    }
 }
 
 /**

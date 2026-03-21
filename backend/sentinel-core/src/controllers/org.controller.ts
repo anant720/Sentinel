@@ -187,15 +187,19 @@ export class OrgController {
             const passwordHash = await AuthService.hashPassword(password);
 
             // Upsert the user: insert if new, update/reactivate if exists
+            // We set password_version = 'v2' and e2ee_enabled = true as the client 
+            // now hashes the password before sending it during invite acceptance.
             const result = await client.query(
-                `INSERT INTO users (organization_id, email, password_hash, full_name, role, is_active)
-                 VALUES ($1, $2, $3, $4, $5, true)
+                `INSERT INTO users (organization_id, email, password_hash, full_name, role, is_active, password_version, e2ee_enabled)
+                 VALUES ($1, $2, $3, $4, $5, true, 'v2', true)
                  ON CONFLICT (email) DO UPDATE SET
                     organization_id = EXCLUDED.organization_id,
                     password_hash = EXCLUDED.password_hash,
                     full_name = EXCLUDED.full_name,
                     role = EXCLUDED.role,
                     is_active = true,
+                    password_version = 'v2',
+                    e2ee_enabled = true,
                     updated_at = NOW()
                  RETURNING id, email, role, organization_id`,
                 [tokenRecord.organization_id, tokenRecord.email, passwordHash, full_name, tokenRecord.role]

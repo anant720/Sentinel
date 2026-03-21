@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { config } from '../config/index.js';
 import { logger } from '../lib/logger.js';
+import { dbManager } from './dbManager.js';
 
 const { Pool } = pg;
 
@@ -10,16 +11,17 @@ export const pool = new Pool({
     allowExitOnIdle: true,
     idleTimeoutMillis: config.DB_IDLE_TIMEOUT,
     connectionTimeoutMillis: 2000,
-    statement_timeout: 10000, // Forces long-stalled transactions structurally executing poorly to immediately abort safely (10-second bound).
+    statement_timeout: 10000, 
 });
 
 pool.on('connect', () => {
     logger.info('Connected to PostgreSQL');
+    dbManager.setHealthy(true);
 });
 
 pool.on('error', (err: any) => {
     logger.error('Unexpected error on idle PostgreSQL client', err);
-    process.exit(-1);
+    dbManager.setHealthy(false);
 });
 
 export const db = {

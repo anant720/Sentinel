@@ -1,4 +1,6 @@
 import api from '../api';
+import { useAuthStore } from '../store';
+import { CryptoService } from './crypto.service';
 
 export const OrgService = {
   getUsers: async () => {
@@ -51,11 +53,41 @@ export const OrgService = {
 
   getSettings: async () => {
     const { data } = await api.get('/organizations/settings');
-    return data;
+    const masterKey = useAuthStore.getState().masterKey;
+    if (!masterKey) return data;
+
+    // Decrypt configs if they are encrypted strings
+    const decryptedData: Record<string, any> = { ...data.data };
+    for (const moduleId of Object.keys(decryptedData)) {
+      const module = decryptedData[moduleId];
+      // Check if the config itself is a string (encrypted)
+      if (typeof module === 'string' || (module && typeof module.config === 'string')) {
+        const cipherText = typeof module === 'string' ? module : module.config;
+        const decrypted = await CryptoService.decryptPayload(cipherText, masterKey);
+        if (decrypted) {
+          decryptedData[moduleId] = { ...module, ...decrypted, is_e2ee: true };
+        }
+      }
+    }
+    return { data: decryptedData };
   },
 
   updateSettings: async (settings: Record<string, any>) => {
-    const { data } = await api.patch('/organizations/settings', settings);
+    const masterKey = useAuthStore.getState().masterKey;
+    if (!masterKey) {
+      const { data } = await api.patch('/organizations/settings', settings);
+      return data;
+    }
+
+    // Encrypt each module's config before sending
+    const encryptedSettings: Record<string, any> = {};
+    for (const moduleId of Object.keys(settings)) {
+      const { enabled, ...config } = settings[moduleId];
+      const cipherText = await CryptoService.encryptPayload(config, masterKey);
+      encryptedSettings[moduleId] = { enabled, config: cipherText };
+    }
+
+    const { data } = await api.patch('/organizations/settings', encryptedSettings);
     return data;
   },
 
@@ -78,6 +110,23 @@ export const OrgService = {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  },
+
+  getAuditLogs: async (params: { limit?: number; offset?: number } = {}) => {
+    const { data } = await api.get('/organizations/audit-logs', { params });
+    const masterKey = useAuthStore.getState().masterKey;
+    if (!masterKey) return data;
+
+    // Decrypt metadata if it is an encrypted string
+    const decryptedRows = await Promise.all(data.data.map(async (row: any) => {
+      if (typeof row.metadata === 'string') {
+        const decrypted = await CryptoService.decryptPayload(row.metadata, masterKey);
+        return { ...row, metadata: decrypted || row.metadata, is_e2ee: !!decrypted };
+      }
+      return row;
+    }));
+
+    return { data: decryptedRows };
   },
 
   getNotifications: async (limit = 50) => {

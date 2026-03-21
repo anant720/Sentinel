@@ -21,7 +21,7 @@ sentinel/
 │   │   ├── services/            # Business logic (Dashboard, Alerts, Ingestion, Orgs)
 │   │   ├── types/               # TypeScript definitions
 │   │   └── workers/             # Background job processors
-│   ├── docker-compose.yml       # Production services (Redis, Grafana, Prom, PG)
+│   ├── docker-compose.yml       # Production services (Redis, PostgreSQL)
 │   └── package.json             # Backend dependencies
 │
 ├── frontend/sentinel-admin/     # React + Vite Admin Console

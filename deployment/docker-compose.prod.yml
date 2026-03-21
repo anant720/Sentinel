@@ -126,28 +126,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Prometheus ────────────────────────────────────────────────────────────
-  prometheus:
-    image: prom/prometheus:v2.52.0
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    networks:
-      - sentinel-mesh
-    restart: unless-stopped
-
-  # ── Grafana ───────────────────────────────────────────────────────────────
-  grafana:
-    image: grafana/grafana:11.0.0
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-changeme}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-    networks:
-      - sentinel-mesh
-    restart: unless-stopped
+  # --- MONITORING STACK REMOVED (Lean Production Mode) ---
 
 networks:
   sentinel-mesh:
@@ -156,6 +135,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  prometheus_data:
-  grafana_data:
   nginx_logs:

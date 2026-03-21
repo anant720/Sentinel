@@ -3,6 +3,7 @@
  * No crypto imports. Token generation delegates to the security layer.
  */
 import { FastifyRequest, FastifyReply } from 'fastify';
+import { logger } from '../lib/logger.js';
 import { AuthService } from '../services/auth.service.js';
 import { AuditService } from '../services/audit.service.js';
 import { EventService } from '../services/event.service.js';
@@ -95,6 +96,7 @@ export class AuthController {
             user_id: user.id,
             organization_id: user.organization_id,
             role: user.role,
+            jti: generateSecureToken(32), // Added unique JTI for revocation
         };
         const accessToken = await reply.jwtSign(payload, {
             header: { kid: config.JWT_ACTIVE_KID, alg: 'HS256' },
@@ -206,6 +208,7 @@ export class AuthController {
             user_id: user.id,
             organization_id: user.organization_id,
             role: user.role,
+            jti: generateSecureToken(32), // Added unique JTI for rotated token
         };
         const newAccessToken = await reply.jwtSign(newPayload, {
             header: { kid: config.JWT_ACTIVE_KID, alg: 'HS256' },
@@ -231,8 +234,23 @@ export class AuthController {
     }
 
     static async logout(request: FastifyRequest, reply: FastifyReply) {
-        const { user_id } = request.user as JWTPayload;
+        const { user_id, jti, exp } = request.user as JWTPayload & { exp: number };
         const orgId = request.orgId;
+
+        // Blacklist the JTI in Redis until it naturally expires
+        if (jti && exp) {
+            const { redisClient, isRedisHealthy } = await import('../lib/redis.js');
+            if (isRedisHealthy) {
+                const now = Math.floor(Date.now() / 1000);
+                const ttl = exp - now;
+                if (ttl > 0) {
+                    await redisClient.set(`revoked:${jti}`, 'true', 'EX', ttl);
+                    logger.debug({ jti, ttl }, 'Access token blacklisted in Redis');
+                }
+            } else {
+                logger.warn({ user_id, jti }, 'Redis unavailable during logout -> token revocation skipped');
+            }
+        }
 
         await AuthService.revokeAllTokens(user_id);
         reply.clearCookie('refreshToken');

@@ -25,19 +25,14 @@ import { DashboardController } from './controllers/dashboard.controller.js';
 import { detectionEngine } from './core/detection.engine.js';
 import { MetricsService } from './services/metrics.service.js';
 import { pool } from './db/client.js';
+import { dbManager } from './db/dbManager.js';
 import { BroadcastService, SECURITY_EVENT_CHANNEL } from './services/broadcast.service.js';
 import { Redis } from 'ioredis';
 import { createVerifier } from 'fast-jwt';
 
 // ---------------------------------------------------------------------------
-// Server instance
+// Server Bootstrap
 // ---------------------------------------------------------------------------
-const fastify: FastifyInstance = Fastify({
-    loggerInstance: logger,
-    disableRequestLogging: false,
-    bodyLimit: 10240, // Phase 6: Limit payload size strictly to 10kb
-    genReqId: () => generateRequestId(),
-});
 
 
 export async function setupServer(fastify: FastifyInstance) {
@@ -113,21 +108,46 @@ export async function setupServer(fastify: FastifyInstance) {
         await fastify.register(jwt, getJwtConfig());
 
         // ------------------------------------------------------------------
-        // 2. Rate limiting (Redis-backed for cross-node global enforcement)
+        // 2. Public & Health Routes (No global rate limit to ensure monitoring stays alive)
         // ------------------------------------------------------------------
-        await fastify.register(rateLimit, {
-            redis: redisClient,
-            max: config.RATE_LIMIT_GLOBAL,
-            timeWindow: '1 minute',
-            errorResponseBuilder: () => ({
-                statusCode: 429,
-                error: 'Too Many Requests',
-                message: 'Rate limit exceeded.',
-            }),
+        
+        // Root redirection/health status
+        fastify.get('/', async () => {
+            return {
+                name: 'Sentinel Security Core API',
+                version: '1.0.0',
+                status: 'running',
+                documentation: '/health/ready'
+            };
+        });
+
+        // Liveness probe (Are we mathematically alive?)
+        fastify.get('/health/live', async (request, reply) => {
+            return reply.send({ status: 'live', uptime: process.uptime() });
+        });
+
+        // Readiness probe (Are our dependencies connected?)
+        fastify.get('/health/ready', async (request, reply) => {
+            const { isRedisHealthy } = await import('./lib/redis.js');
+            const { dbManager } = await import('./db/dbManager.js');
+            
+            const dbConnected = dbManager.getHealth();
+            const redisConnected = isRedisHealthy;
+            
+            const isReady = dbConnected; // Redis is now optional for readiness, but we report its status
+
+            return reply.code(isReady ? 200 : 503).send({
+                status: isReady ? 'ready' : 'unavailable',
+                timestamp: new Date().toISOString(),
+                services: {
+                    database: dbConnected ? 'connected' : 'disconnected',
+                    redis: redisConnected ? 'connected' : 'disconnected',
+                },
+            });
         });
 
         // ------------------------------------------------------------------
-        // Telemetry global hooks (Prometheus RED metrics)
+        // 3. Telemetry & Metrics (Apply to all routes)
         // ------------------------------------------------------------------
         fastify.addHook('onRequest', (request, reply, done) => {
             (request as any).startTime = process.hrtime();
@@ -144,56 +164,81 @@ export async function setupServer(fastify: FastifyInstance) {
                 reply.statusCode.toString()
             ).observe(durationInSeconds);
 
-            // Extract Fastify rate limiter bumps (429 Too Many Requests)
             if (reply.statusCode === 429) {
                 MetricsService.rateLimitTriggers.labels(
                     request.routeOptions.url || request.url,
                     request.ip
                 ).inc();
             }
-
             done();
         });
 
-        // Expose metrics directly to Prometheus scrapers
         fastify.get('/metrics', async (request, reply) => {
             reply.header('Content-Type', MetricsService.getContentType());
             return await MetricsService.getMetrics();
         });
 
         // ------------------------------------------------------------------
-        // 3. Centralized error handler
+        // 4. Centralized error handler + DB Health check hook
         // ------------------------------------------------------------------
-        fastify.setErrorHandler((error: FastifyError, request, reply) => {
+        fastify.addHook('onRequest', async (request, reply) => {
+            // Skip for health/metrics
+            if (request.url.startsWith('/health') || request.url === '/metrics' || request.url === '/') return;
+            
+            if (!dbManager.getHealth()) {
+                return reply.code(503).send({
+                    error: 'Service Unavailable',
+                    message: 'Database is currently unreachable. Retrying connection...',
+                    retry_after: 10
+                });
+            }
+        });
+
+        fastify.setErrorHandler(async (error: FastifyError, request, reply) => {
             const statusCode = error.statusCode ?? 500;
             const isServerError = statusCode >= 500;
 
-            logger.error(
-                { err: error, reqId: request.id, url: request.url, statusCode },
-                'Request error',
-            );
+            // Handle Redis-related failures (Fail-Closed)
+            // We check message, stack, and also a global health flag for maximum reliability
+            const { isRedisHealthy } = await import('./lib/redis.js');
+            const errorText = (error.message + (error.stack || '')).toLowerCase();
+            const isRedisError = 
+                !isRedisHealthy ||
+                errorText.includes('econnrefused') || 
+                errorText.includes('redis') || 
+                errorText.includes('stream is not writeable') ||
+                errorText.includes('command timeout');
+
+            if (isRedisError && statusCode >= 500) {
+                return reply.code(503).send({
+                    error: 'Service Unavailable',
+                    message: 'A required security service is temporarily unavailable.',
+                    retry_after: 30
+                });
+            }
+
+            logger.error({ err: error, reqId: request.id, url: request.url, statusCode }, 'Request error');
 
             reply.code(statusCode).send({
                 error: isServerError ? 'Internal Server Error' : error.message,
                 statusCode,
                 reqId: request.id,
-                // Stack traces ONLY in development — never in production
                 ...(config.isDev && isServerError ? { stack: error.stack } : {}),
             });
         });
 
         // ------------------------------------------------------------------
-        // 4. Routes
+        // 5. Rate limiting (Redis-backed)
         // ------------------------------------------------------------------
-        
-        // Root redirection/health status
-        fastify.get('/', async () => {
-            return {
-                name: 'Sentinel Security Core API',
-                version: '1.0.0',
-                status: 'running',
-                documentation: '/health/ready'
-            };
+        await fastify.register(rateLimit, {
+            redis: redisClient,
+            max: config.RATE_LIMIT_GLOBAL,
+            timeWindow: '1 minute',
+            errorResponseBuilder: () => ({
+                statusCode: 429,
+                error: 'Too Many Requests',
+                message: 'Rate limit exceeded.',
+            }),
         });
 
         // — Public: login (with tight rate limit, Redis-backed)
@@ -504,34 +549,6 @@ export async function setupServer(fastify: FastifyInstance) {
 
         });
 
-        // — Health checks (public, kubernetes-compliant)
-
-        // Liveness probe (Are we mathematically alive?)
-        fastify.get('/health/live', async (request, reply) => {
-            return reply.send({ status: 'live', uptime: process.uptime() });
-        });
-
-        // Readiness probe (Are our dependencies connected?)
-        fastify.get('/health/ready', async (request, reply) => {
-            let dbConnected = true;
-            try {
-                await pool.query('SELECT 1');
-            } catch {
-                dbConnected = false;
-            }
-
-            const redisConnected = redisClient.status === 'ready';
-            const isReady = dbConnected && redisConnected;
-
-            return reply.code(isReady ? 200 : 503).send({
-                status: isReady ? 'ready' : 'unavailable',
-                timestamp: new Date().toISOString(),
-                services: {
-                    database: dbConnected ? 'connected' : 'disconnected',
-                    redis: redisConnected ? 'connected' : 'disconnected',
-                },
-            });
-        });
 
     } catch (err) {
         logger.error({ err }, 'Failed to setup Fastify plugins');
@@ -540,155 +557,185 @@ export async function setupServer(fastify: FastifyInstance) {
 }
 
 async function bootstrap() {
-    try {
-        await setupServer(fastify);
+    let bootstrapRetries = 0;
+    const maxBootstrapRetries = 10;
 
-        // ------------------------------------------------------------------
-        // 5. External services & plugins
-        // ------------------------------------------------------------------
-        await connectRedis();
-        setupQueue();
-        await detectionEngine.initialize(fastify);
-
-        if (config.ROLE === 'all') {
-            await import('./queues/event.worker.js');
-            logger.info('Background Worker initialized synchronously in Monolith profile');
-        }
-
-        // — Health checks (public, kubernetes-compliant)
-        fastify.get('/health', async () => {
-            return { status: 'healthy', timestamp: new Date().toISOString() };
+    const runBootstrap = async () => {
+        const fastify: FastifyInstance = Fastify({
+            loggerInstance: logger,
+            disableRequestLogging: false,
+            bodyLimit: 10240,
+            genReqId: () => generateRequestId(),
         });
 
-        // ------------------------------------------------------------------
-        // WebSocket server for real-time security event streaming
-        // ------------------------------------------------------------------
-        const { WebSocketServer } = await import('ws');
-        const httpServer = (fastify.server as any);
-        const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+        try {
+            await setupServer(fastify);
 
-        // Publish helper — attach to global so detection engine can call it
-        (global as any).broadcastSecurityEvent = (event: object) => {
-            BroadcastService.publish(event as any).catch((err: any) => 
-                logger.error({ err: err.message }, 'Global broadcast failure')
-            );
-        };
-
-        // ── Redis Subscriber for Hooking Event Ingestion (Cross-Process) ──
-        const subscriber = process.env.REDIS_URL
-            ? new Redis(process.env.REDIS_URL, {
-                tls: process.env.REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
-              })
-            : new Redis({
-                host: config.REDIS_HOST,
-                port: config.REDIS_PORT,
-                password: config.REDIS_PASSWORD || undefined,
-              });
-
-        subscriber.subscribe(SECURITY_EVENT_CHANNEL, (err) => {
-            if (err) logger.error({ err: err.message }, 'Failed to subscribe to security events channel');
-            else logger.info('Subscribed to Redis security_events channel for real-time broadcasting');
-        });
-
-        const { MANAGEMENT_EVENT_CHANNEL } = await import('./services/broadcast.service.js');
-        subscriber.subscribe(MANAGEMENT_EVENT_CHANNEL, (err) => {
-            if (err) logger.error({ err: err.message }, 'Failed to subscribe to management events channel');
-            else logger.info('Subscribed to Redis management_events channel for real-time broadcasting');
-        });
-
-        subscriber.on('message', (channel, message) => {
-            if (channel === SECURITY_EVENT_CHANNEL || channel === MANAGEMENT_EVENT_CHANNEL) {
-                wss.clients.forEach((client: any) => {
-                    if (client.readyState === 1) client.send(message);
+            // ------------------------------------------------------------------
+            // 5. External services & plugins
+            // ------------------------------------------------------------------
+            await connectRedis();
+            
+            // Try initial DB connection check
+            try {
+                await pool.query('SELECT 1');
+                dbManager.setHealthy(true);
+            } catch (err) {
+                logger.error('Initial DB connection failed. Starting background retry loop.');
+                dbManager.handleConnectionError(async () => {
+                    await pool.query('SELECT 1');
                 });
             }
-        });
 
-        wss.on('connection', async (socket: any, req: any) => {
-            // Authenticate via ?token= query param
-            const url = new URL(req.url!, `http://localhost`);
-            const token = url.searchParams.get('token');
-            if (!token) { socket.close(4001, 'Unauthorized'); return; }
-            try {
-                const decoded: any = fastify.jwt.decode(token, { complete: true });
-                const kid = decoded?.header?.kid || 'default';
-                const secret = config.JWT_SECRETS_MAP[kid];
-
-                if (!secret) {
-                    logger.warn({ kid }, 'WS Auth failed: Invalid key ID');
-                    socket.close(4001, 'Invalid token');
-                    return;
-                }
-
-                const verifier = createVerifier({ key: secret });
-                verifier(token);
-            } catch (err: any) {
-                logger.error({ err: err.message }, 'WS Auth exception');
-                socket.close(4001, 'Invalid token'); 
-                return;
+            setupQueue();
+            await detectionEngine.initialize(fastify);
+            
+            if (config.ROLE === 'all') {
+                await import('./queues/event.worker.js');
+                logger.info('Background Worker initialized synchronously in Monolith profile');
             }
-            socket.send(JSON.stringify({ type: 'connected', timestamp: Date.now() }));
-            logger.info('WebSocket client authenticated and connected');
-        });
 
-        // ------------------------------------------------------------------
-        // 6. Start
-        // ------------------------------------------------------------------
-        await fastify.listen({ port: config.PORT, host: config.HOST });
-        logger.info(`🚀 Sentinel Core started on http://${config.HOST}:${config.PORT}`);
-        logger.info('WebSocket server ready at /ws');
 
-        // ------------------------------------------------------------------
-        // 7. Nightly DB maintenance (Retention + partition creation)
-        // ------------------------------------------------------------------
-        const { RetentionService } = await import('./services/retention.service.js');
-        RetentionService.createNextMonthPartition().catch(err =>
-            logger.error({ err }, 'Failed to pre-create next month partition')
-        );
-        setInterval(() => {
-            RetentionService.runNightlyMaintenance().catch(err =>
-                logger.error({ err }, 'Nightly DB maintenance failed')
-            );
-        }, 24 * 60 * 60 * 1000);
+            // ------------------------------------------------------------------
+            // WebSocket server for real-time security event streaming
+            // ------------------------------------------------------------------
+            const { WebSocketServer } = await import('ws');
+            const httpServer = (fastify.server as any);
+            const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-        // ------------------------------------------------------------------
-        // 8. Risk Snapshotting (Every 15 minutes)
-        // ------------------------------------------------------------------
-        setInterval(async () => {
-            try {
-                const { db } = await import('./lib/database.js');
-                const { DashboardService } = await import('./services/dashboard.service.js');
-                const orgs = await db.query('SELECT id FROM organizations WHERE is_active = true');
-                for (const org of orgs.rows) {
-                    await DashboardService.snapshotRiskScore(org.id);
-                }
-                logger.info(`Captured risk snapshots for ${orgs.rowCount} organizations`);
-            } catch (err) {
-                logger.error({ err }, 'Risk snapshotting failed');
-            }
-        }, 60 * 1000);
+            // Publish helper — attach to global so detection engine can call it
+            (global as any).broadcastSecurityEvent = (event: object) => {
+                BroadcastService.publish(event as any).catch((err: any) => 
+                    logger.error({ err: err.message }, 'Global broadcast failure')
+                );
+            };
 
-        // ------------------------------------------------------------------
-        // Graceful shutdown
-        // ------------------------------------------------------------------
-        const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
-        signals.forEach((signal) => {
-            process.on(signal, async () => {
-                logger.info(`Received ${signal}, shutting down…`);
-                try {
-                    await fastify.close();
-                    await redisClient.quit();
-                    await pool.end();
-                    logger.info('All connections closed. Goodbye!');
-                } finally {
-                    process.exit(0);
+            // ── Redis Subscriber for Hooking Event Ingestion (Cross-Process) ──
+            const subscriber = process.env.REDIS_URL
+                ? new Redis(process.env.REDIS_URL, {
+                    tls: process.env.REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+                  })
+                : new Redis({
+                    host: config.REDIS_HOST,
+                    port: config.REDIS_PORT,
+                    password: config.REDIS_PASSWORD || undefined,
+                  });
+
+            subscriber.subscribe(SECURITY_EVENT_CHANNEL, (err) => {
+                if (err) logger.error({ err: err.message }, 'Failed to subscribe to security events channel');
+                else logger.info('Subscribed to Redis security_events channel for real-time broadcasting');
+            });
+
+            const { MANAGEMENT_EVENT_CHANNEL } = await import('./services/broadcast.service.js');
+            subscriber.subscribe(MANAGEMENT_EVENT_CHANNEL, (err) => {
+                if (err) logger.error({ err: err.message }, 'Failed to subscribe to management events channel');
+                else logger.info('Subscribed to Redis management_events channel for real-time broadcasting');
+            });
+
+            subscriber.on('message', (channel, message) => {
+                if (channel === SECURITY_EVENT_CHANNEL || channel === MANAGEMENT_EVENT_CHANNEL) {
+                    wss.clients.forEach((client: any) => {
+                        if (client.readyState === 1) client.send(message);
+                    });
                 }
             });
-        });
-    } catch (err) {
-        logger.error({ err }, 'Failed to start server');
-        process.exit(1);
-    }
+
+            wss.on('connection', async (socket: any, req: any) => {
+                // Authenticate via ?token= query param
+                const url = new URL(req.url!, `http://localhost`);
+                const token = url.searchParams.get('token');
+                if (!token) { socket.close(4001, 'Unauthorized'); return; }
+                try {
+                    const decoded: any = fastify.jwt.decode(token, { complete: true });
+                    const kid = decoded?.header?.kid || 'default';
+                    const secret = config.JWT_SECRETS_MAP[kid];
+
+                    if (!secret) {
+                        logger.warn({ kid }, 'WS Auth failed: Invalid key ID');
+                        socket.close(4001, 'Invalid token');
+                        return;
+                    }
+
+                    const verifier = createVerifier({ key: secret });
+                    verifier(token);
+                } catch (err: any) {
+                    logger.error({ err: err.message }, 'WS Auth exception');
+                    socket.close(4001, 'Invalid token'); 
+                    return;
+                }
+                socket.send(JSON.stringify({ type: 'connected', timestamp: Date.now() }));
+                logger.info('WebSocket client authenticated and connected');
+            });
+
+            // ------------------------------------------------------------------
+            // 6. Start
+            // ------------------------------------------------------------------
+            await fastify.listen({ port: config.PORT, host: config.HOST });
+            logger.info(`🚀 Sentinel Core started on http://${config.HOST}:${config.PORT}`);
+            logger.info('WebSocket server ready at /ws');
+
+            // ------------------------------------------------------------------
+            // 7. Nightly DB maintenance (Retention + partition creation)
+            // ------------------------------------------------------------------
+            const { RetentionService } = await import('./services/retention.service.js');
+            RetentionService.createNextMonthPartition().catch(err =>
+                logger.error({ err }, 'Failed to pre-create next month partition')
+            );
+            setInterval(() => {
+                RetentionService.runNightlyMaintenance().catch(err =>
+                    logger.error({ err }, 'Nightly DB maintenance failed')
+                );
+            }, 24 * 60 * 60 * 1000);
+
+            // ------------------------------------------------------------------
+            // 8. Risk Snapshotting (Every 15 minutes)
+            // ------------------------------------------------------------------
+            setInterval(async () => {
+                try {
+                    const { db } = await import('./lib/database.js');
+                    const { DashboardService } = await import('./services/dashboard.service.js');
+                    const orgs = await db.query('SELECT id FROM organizations WHERE is_active = true');
+                    for (const org of orgs.rows) {
+                        await DashboardService.snapshotRiskScore(org.id);
+                    }
+                    logger.info(`Captured risk snapshots for ${orgs.rowCount} organizations`);
+                } catch (err) {
+                    logger.error({ err }, 'Risk snapshotting failed');
+                }
+            }, 60 * 1000);
+
+            // ------------------------------------------------------------------
+            // Graceful shutdown
+            // ------------------------------------------------------------------
+            const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
+            signals.forEach((signal) => {
+                process.on(signal, async () => {
+                    logger.info(`Received ${signal}, shutting down…`);
+                    try {
+                        await fastify.close();
+                        await redisClient.quit();
+                        await pool.end();
+                        logger.info('All connections closed. Goodbye!');
+                    } finally {
+                        process.exit(0);
+                    }
+                });
+            });
+
+        } catch (err) {
+            bootstrapRetries++;
+            if (bootstrapRetries < maxBootstrapRetries) {
+                const delay = Math.min(Math.pow(2, bootstrapRetries) * 1000, 30000);
+                logger.error({ err }, `Failed to start server. Retrying in ${delay}ms...`);
+                setTimeout(runBootstrap, delay);
+            } else {
+                logger.error({ err }, 'Failed to start server after maximum retries. Exiting.');
+                process.exit(1);
+            }
+        }
+    };
+
+    runBootstrap();
 }
 
 // Ensure tests can import this without starting the listeners
@@ -696,4 +743,4 @@ if (process.env.NODE_ENV !== 'test') {
     bootstrap();
 }
 
-export default fastify;
+export default {} as FastifyInstance;

@@ -26,13 +26,27 @@ export const authMiddleware = async (
         await request.jwtVerify();
 
         // Step 2: Structural validation — confirm all required claims are present
-        // validateTokenPayload() throws if any field is missing or wrong type
         const validated = validateTokenPayload(request.user);
 
-        // Step 3: Replace request.user with the strictly-typed, validated payload
+        // Step 3: Revocation Check — check Redis for blacklisted JTI
+        const { redisClient, isRedisHealthy } = await import('../lib/redis.js');
+
+        if (!isRedisHealthy) {
+            return reply.status(503).send({
+                error: 'Service Unavailable',
+                message: 'Authentication security service is temporarily unavailable.'
+            });
+        }
+
+        const isRevoked = await redisClient.get(`revoked:${validated.jti}`);
+        if (isRevoked) {
+            throw new Error('Token has been revoked');
+        }
+
+        // Step 4: Replace request.user with the strictly-typed, validated payload
         request.user = validated;
 
-        // Step 4: Non-blocking presence update — fire-and-forget, never blocks the request
+        // Step 5: Non-blocking presence update
         if (validated.user_id) {
             import('../lib/database.js').then(({ db }) => {
                 db.query(
@@ -41,12 +55,10 @@ export const authMiddleware = async (
                 ).catch(() => { /* non-blocking, ignore errors */ });
             }).catch(() => { /* ignore import errors */ });
         }
-    } catch (err) {
-        const message =
-            err instanceof Error && err.message.includes('Malformed JWT')
-                ? 'Malformed token payload'
-                : 'Missing or invalid token';
-
+    } catch (err: any) {
+        const message = err.message?.includes('Malformed JWT') 
+            ? 'Malformed token payload' 
+            : 'Missing or invalid token';
         reply.code(401).send({ error: 'Unauthorized', message });
     }
 };

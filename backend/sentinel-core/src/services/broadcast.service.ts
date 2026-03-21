@@ -37,6 +37,11 @@ export const BroadcastService = {
 
     async _publish(channel: string, event: BroadcastEvent): Promise<void> {
         try {
+            const { isRedisHealthy } = await import('../lib/redis.js');
+            if (!isRedisHealthy) {
+                logger.warn({ eventId: event.id, channel }, 'Redis unavailable -> event broadcast skipped');
+                return;
+            }
             const message = JSON.stringify(event);
             await redisClient.publish(channel, message);
             logger.debug({ eventId: event.id, type: event.type, channel }, 'Event published to Redis Pub/Sub');
