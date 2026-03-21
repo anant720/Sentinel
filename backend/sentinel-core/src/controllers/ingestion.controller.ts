@@ -128,9 +128,15 @@ export class IngestionController {
 
         // ── 4. Forward to service
         try {
-            // Enhanced IP Resolution: Prefer request.ip but fallback to payload if request.ip is loopback/missing
+            // Enhanced IP Resolution: Prefer request.ip but fallback to payload if request.ip is loopback/missing/local
             let clientIp = request.ip;
-            if (!clientIp || clientIp === '127.0.0.1' || clientIp === '::1') {
+            const isLoopback = !clientIp || 
+                               clientIp === '127.0.0.1' || 
+                               clientIp === '::1' || 
+                               clientIp.includes('127.0.0.1') || 
+                               clientIp.startsWith('10.'); // Render internal network
+
+            if (isLoopback) {
                 clientIp = (payload.ip_address as string) || (payload.ip as string) || request.ip;
             }
 
