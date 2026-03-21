@@ -50,7 +50,7 @@ export async function setupServer(fastify: FastifyInstance) {
                     imgSrc: ["'self'", "data:"],
                     connectSrc: config.isDev
                         ? ["'self'", 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:5173']
-                        : ["'self'", 'https://sentinel-admin-demo.vercel.app', 'https://sentinel-admin-git-2631-anant-suthars-projects.vercel.app', 'https://sentinel-admin-f0gq8332k-anant-suthars-projects.vercel.app'],
+                        : ["'self'", 'https://sentinel-admin-roan.vercel.app', 'https://sentinel-admin-demo.vercel.app', 'https://sentinel-admin-git-2631-anant-suthars-projects.vercel.app', 'https://sentinel-admin-f0gq8332k-anant-suthars-projects.vercel.app'],
                     fontSrc: ["'self'"],
                     objectSrc: ["'none'"],
                     mediaSrc: ["'none'"],
@@ -233,7 +233,7 @@ export async function setupServer(fastify: FastifyInstance) {
         // ------------------------------------------------------------------
         await fastify.register(rateLimit, {
             redis: redisClient,
-            max: config.RATE_LIMIT_GLOBAL,
+            max: 1000, // Temporarily increased from config.RATE_LIMIT_GLOBAL (100)
             timeWindow: '1 minute',
             errorResponseBuilder: () => ({
                 statusCode: 429,
@@ -246,7 +246,7 @@ export async function setupServer(fastify: FastifyInstance) {
         fastify.register(async (pub: FastifyInstance) => {
             await pub.register(rateLimit, {
                 redis: redisClient,
-                max: config.RATE_LIMIT_LOGIN,
+                max: 500, // Temporarily increased from config.RATE_LIMIT_LOGIN (100)
                 timeWindow: '15m',
                 keyGenerator: (req) => `login:${req.ip}`,
                 errorResponseBuilder: () => ({
