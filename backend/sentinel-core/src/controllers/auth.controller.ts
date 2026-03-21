@@ -101,7 +101,11 @@ export class AuthController {
                         type: 'login_failure',
                         timestamp: Date.now(),
                         severity: 'medium',
-                        payload: { email, ip_address: clientIp },
+                        payload: { 
+                            email, 
+                            ip_address: clientIp,
+                            location: { city: geo.city, country: geo.country }
+                        },
                     });
                 }
             } catch { /* non-blocking */ }
@@ -189,7 +193,12 @@ export class AuthController {
                     type: 'login_attempt',
                     timestamp: Date.now(),
                     severity: 'low',
-                    payload: { email: user.email, ip_address: clientIp, role: user.role },
+                    payload: { 
+                        email: user.email, 
+                        ip_address: clientIp, 
+                        role: user.role,
+                        location: { city: geo.city, country: geo.country }
+                    },
                 });
             }
         } catch (err: any) { 
