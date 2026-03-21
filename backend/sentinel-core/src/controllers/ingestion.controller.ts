@@ -155,7 +155,17 @@ export class IngestionController {
         const { db } = await import('../lib/database.js');
 
         let sql = `
-            SELECT e.id, e.event_type, e.payload, e.timestamp, d.device_name
+            SELECT 
+                e.id, 
+                e.event_type, 
+                e.payload, 
+                e.timestamp, 
+                e.ip_address,
+                e.geo_country,
+                e.geo_city,
+                e.geo_lat,
+                e.geo_lon,
+                d.device_name
             FROM events e
             LEFT JOIN devices d ON e.device_id = d.id
             WHERE e.organization_id = $1

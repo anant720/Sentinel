@@ -86,7 +86,11 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
                 email: payload.email || payload.user_email || payload.user,
                 device: event.device_id,
                 userAgent: payload.userAgent || payload.user_agent,
-                payload
+                payload: {
+                    ...payload,
+                    ip_address: event.ip_address || payload.ip_address,
+                    location: GeoIPService.lookup(event.ip_address || payload.ip_address || '')
+                }
             };
 
             const context = {
@@ -132,7 +136,7 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
                 payload: {
                     ...detectionEvent.payload,
                     risk_score: riskScore,
-                    geo: geo ? {
+                    location: geo ? {
                         country: geo.country,
                         country_code: geo.countryCode,
                         city: geo.city,
