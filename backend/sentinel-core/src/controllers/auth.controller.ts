@@ -61,20 +61,39 @@ export class AuthController {
                 event_type: 'login_failed',
                 payload: { email, user_id: user.id },
             });
-            // Record failed login in telemetry for admin visibility
             try {
                 const { db } = await import('../lib/database.js');
+                const { GeoIPService } = await import('../services/geoip.service.js');
+                
+                const clientIp = request.ip || '';
+                const geoLookup = await GeoIPService.lookup(clientIp);
+                const geo = {
+                    country: (request.headers['cf-ipcountry'] as string) || (request.headers['x-vercel-ip-country'] as string) || geoLookup?.country || null,
+                    countryCode: (request.headers['cf-ipcountry'] as string) || (request.headers['x-vercel-ip-country'] as string) || geoLookup?.countryCode || null,
+                    city: (request.headers['x-vercel-ip-city'] as string) || geoLookup?.city || null,
+                    lat: geoLookup?.lat || null,
+                    lon: geoLookup?.lon || null,
+                    isp: geoLookup?.isp || null,
+                    address: null // Front-end logins don't send GPS currently
+                };
+
                 const failPayload = JSON.stringify({
                     email,
                     user_id: user.id,
-                    ip_address: request.ip,
+                    ip_address: clientIp,
                     user_agent: request.headers['user-agent'] ?? null,
                     risk_score: 35,
                 });
+
                 await db.query(
-                    `INSERT INTO events (organization_id, event_type, payload, signature, integrity_hash)
-                     VALUES ($1, $2, $3, $4, $5)`,
-                    [user.organization_id, 'login_failure', failPayload, 'auth-controller', 'auth-controller']
+                    `INSERT INTO events (
+                        organization_id, event_type, payload, signature, integrity_hash, processed,
+                        ip_address, geo_country, geo_country_code, geo_city, geo_lat, geo_lon, geo_isp, geo_address
+                     ) VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                    [
+                        user.organization_id, 'login_failure', failPayload, 'auth-controller', 'auth-controller',
+                        clientIp, geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp, geo.address
+                    ]
                 );
                 if ((global as any).broadcastSecurityEvent) {
                     (global as any).broadcastSecurityEvent({
@@ -82,7 +101,7 @@ export class AuthController {
                         type: 'login_failure',
                         timestamp: Date.now(),
                         severity: 'medium',
-                        payload: { email, ip_address: request.ip },
+                        payload: { email, ip_address: clientIp },
                     });
                 }
             } catch { /* non-blocking */ }
@@ -130,18 +149,38 @@ export class AuthController {
         // Record login success in events for org-wide admin visibility
         try {
             const { db } = await import('../lib/database.js');
+            const { GeoIPService } = await import('../services/geoip.service.js');
+                
+            const clientIp = request.ip || '';
+            const geoLookup = await GeoIPService.lookup(clientIp);
+            const geo = {
+                country: (request.headers['cf-ipcountry'] as string) || (request.headers['x-vercel-ip-country'] as string) || geoLookup?.country || null,
+                countryCode: (request.headers['cf-ipcountry'] as string) || (request.headers['x-vercel-ip-country'] as string) || geoLookup?.countryCode || null,
+                city: (request.headers['x-vercel-ip-city'] as string) || geoLookup?.city || null,
+                lat: geoLookup?.lat || null,
+                lon: geoLookup?.lon || null,
+                isp: geoLookup?.isp || null,
+                address: null // Front-end logins don't send GPS currently
+            };
+
             const successPayload = JSON.stringify({
                 email: user.email,
                 user_id: user.id,
                 role: user.role,
-                ip_address: request.ip,
+                ip_address: clientIp,
                 user_agent: request.headers['user-agent'] ?? null,
                 risk_score: 0,
             });
+
             await db.query(
-                `INSERT INTO events (organization_id, event_type, payload, signature, integrity_hash)
-                 VALUES ($1, $2, $3, $4, $5)`,
-                [user.organization_id, 'login_success', successPayload, 'auth-controller', 'auth-controller']
+                `INSERT INTO events (
+                    organization_id, event_type, payload, signature, integrity_hash, processed,
+                    ip_address, geo_country, geo_country_code, geo_city, geo_lat, geo_lon, geo_isp, geo_address
+                 ) VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                [
+                    user.organization_id, 'login_success', successPayload, 'auth-controller', 'auth-controller',
+                    clientIp, geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp, geo.address
+                ]
             );
             // Broadcast to WebSocket org channel
             if ((global as any).broadcastSecurityEvent) {
@@ -150,7 +189,7 @@ export class AuthController {
                     type: 'login_attempt',
                     timestamp: Date.now(),
                     severity: 'low',
-                    payload: { email: user.email, ip_address: request.ip, role: user.role },
+                    payload: { email: user.email, ip_address: clientIp, role: user.role },
                 });
             }
         } catch (err: any) { 
