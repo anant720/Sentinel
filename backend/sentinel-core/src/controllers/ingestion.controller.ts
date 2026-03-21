@@ -131,7 +131,7 @@ export class IngestionController {
             const result = await IngestionService.ingest(request.orgId, {
                 event,
                 signature,
-            });
+            }, request.ip); // Explicitly pass the server-verified IP
             MetricsService.eventsIngestedTotal.labels(event.event_type).inc();
             return reply.code(202).send({ message: 'Event accepted', event_id: result.id });
         } catch (err: unknown) {

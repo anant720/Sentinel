@@ -53,8 +53,9 @@ export class IngestionService {
      *
      * @param orgId     Always from req.orgId (JWT) — never from client body.
      * @param rawInput  Unvalidated inbound data — validated here before use.
+     * @param clientIp  Optional server-verified client IP.
      */
-    static async ingest(orgId: string, rawInput: unknown) {
+    static async ingest(orgId: string, rawInput: unknown, clientIp?: string) {
         // ── 1. Schema validation ──────────────────────────────────────────
         const parsed = IngestEventSchema.safeParse(rawInput);
         if (!parsed.success) {
@@ -86,10 +87,10 @@ export class IngestionService {
         // ── 3. DB insert (processed = false always) ───────────────────────
         const result = await db.query(
             `INSERT INTO events
-                 (organization_id, device_id, event_type, payload, signature, integrity_hash, processed)
-             VALUES ($1, $2, $3, $4, $5, $6, false)
+                 (organization_id, device_id, event_type, payload, signature, integrity_hash, processed, ip_address)
+             VALUES ($1, $2, $3, $4, $5, $6, false, $7)
              RETURNING id, created_at`,
-            [orgId, event.device_id, event.event_type, event.payload, signature, integrityHash],
+            [orgId, event.device_id, event.event_type, event.payload, signature, integrityHash, clientIp],
         );
 
         const stored = result.rows[0];

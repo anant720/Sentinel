@@ -6,6 +6,7 @@ import { passwordSpraying } from './rules/password-spraying.rule.js';
 import { fingerprintCampaign } from './rules/fingerprint-campaign.rule.js';
 import { riskScoring } from './rules/risk-scoring.rule.js';
 import { securityToolDetection } from './rules/security-tool-detection.rule.js';
+import { impossibleTravelRule } from './rules/impossible-travel.rule.js';
 
 export const rules: DetectionRule[] = [
     rapidFailedLogins,
@@ -14,5 +15,6 @@ export const rules: DetectionRule[] = [
     passwordSpraying,
     fingerprintCampaign,
     riskScoring,
-    securityToolDetection
+    securityToolDetection,
+    impossibleTravelRule
 ];

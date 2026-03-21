@@ -38,7 +38,7 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
 
         // ── 1. Fetch event (org-scoped) ───────────────────────────────────────
         const fetchResult = await db.query(
-            `SELECT id, processed, event_type, device_id, payload, created_at
+            `SELECT id, processed, event_type, device_id, payload, created_at, ip_address
          FROM events
          WHERE id = $1
            AND organization_id = $2`,
@@ -82,7 +82,7 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
                 id: event.id,
                 type: event.event_type,
                 timestamp: new Date(event.created_at).getTime(),
-                ip: payload.ip || payload.ip_address || payload.source_ip,
+                ip: event.ip_address || payload.ip || payload.ip_address || payload.source_ip,
                 email: payload.email || payload.user_email || payload.user,
                 device: event.device_id,
                 userAgent: payload.userAgent || payload.user_agent,
@@ -99,7 +99,7 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
             const severity = RiskAssessmentService.getSeverity(riskScore);
 
             // ── 6. GeoIP Enrichment ────────────────────────────────────────────
-            const ip = payload.ip_address || payload.ip || payload.source_ip || '';
+            const ip = event.ip_address || payload.ip_address || payload.ip || payload.source_ip || '';
             const geo = GeoIPService.lookup(ip);
 
             if (geo) {

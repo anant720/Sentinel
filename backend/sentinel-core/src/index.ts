@@ -566,6 +566,7 @@ async function bootstrap() {
             disableRequestLogging: false,
             bodyLimit: 10240,
             genReqId: () => generateRequestId(),
+            trustProxy: true, // Enable for Render/Vercel/Proxy support
         });
 
         try {
