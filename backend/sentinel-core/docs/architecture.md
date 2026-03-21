@@ -8,16 +8,26 @@ The system utilizes a decoupled microservices architecture optimized for real-ti
 
 ```mermaid
 graph TD
-    Internet-->|HTTPS/E2EE| API[Sentinel Fastify API]
-    API-->|Critical Path| PgBouncer[Connection Supervisor]
-    PgBouncer-->PostgreSQL[(Supabase / PG)]
+    User([Attacker / User]) -->|HTTPS + E2EE| API[Sentinel Fastify API]
     
-    API-.->|Optional/Live| Redis[Upstash Redis]
-    Redis-->|Pub/Sub| SOC[SOC Dashboard]
-    
-    API-->|Async Ingest| BullMQ[Job Queues]
-    BullMQ-->Workers[Detection Workers]
-    Workers-->PgBouncer
+    subgraph "Critical Path"
+        API -->|Sync| PgB[PgBouncer]
+        PgB --> DB[(Supabase / PG)]
+    end
+
+    subgraph "Real-time Broadcast (Optional)"
+        API -.->|Heartbeat Check| Redis[Upstash Redis]
+        Redis -.->|WS PubSub| SOC([SOC Dashboard])
+    end
+
+    subgraph "Async Processing"
+        API -->|Task| BMQ[BullMQ Queue]
+        BMQ --> Workers{Detection Workers}
+        Workers --> PgB
+    end
+
+    style Redis fill:#f9f,stroke:#333,stroke-width:2px
+    style SOC fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
 ## 🛡️ Resilience Architecture (Redis Failover)

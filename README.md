@@ -37,6 +37,7 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 
 ## 2️⃣ Architecture Diagram
 
+```text
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         SENTINEL PLATFORM v26.3.2                       │
 │                                                                         │
