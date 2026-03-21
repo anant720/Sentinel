@@ -11,6 +11,7 @@ const DETECTION_MODULES = [
   { id: 'distributed_login', name: 'Distributed Login Attack', description: 'Detects logins from multiple IPs for a single account' },
   { id: 'password_spraying', name: 'Password Spraying', description: 'Detects a single IP targeting multiple accounts' },
   { id: 'fingerprint_campaign', name: 'Fingerprint Campaign', description: 'Detects automated tools via browser/device fingerprints' },
+  { id: 'impossible_travel', name: 'Impossible Travel', description: 'Detects concurrent logins from geophysically impossible locations' },
   { id: 'security_tool_detection', name: 'Security Tool Detection', description: 'Detects known hacking tools (Nmap, SQLMap, etc.)' },
   { id: 'risk_scoring', name: 'Risk Score Threshold', description: 'Behavioral risk aggregation engine' },
 ];
