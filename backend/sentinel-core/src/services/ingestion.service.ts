@@ -55,7 +55,7 @@ export class IngestionService {
      * @param rawInput  Unvalidated inbound data — validated here before use.
      * @param clientIp  Optional server-verified client IP.
      */
-    static async ingest(orgId: string, rawInput: unknown, clientIp?: string) {
+    static async ingest(orgId: string, rawInput: unknown, clientIp?: string, geoOverride?: any) {
         // ── 1. Schema validation ──────────────────────────────────────────
         const parsed = IngestEventSchema.safeParse(rawInput);
         if (!parsed.success) {
@@ -77,9 +77,19 @@ export class IngestionService {
             });
         }
 
-        // ── 2.5 Synchronous GeoIP Enrichment (Hardened visibility) ───────
+        // ── 2.5 Multi-Source Geo Enrichment (The "New Way") ───────────────
         const { GeoIPService } = await import('./geoip.service.js');
-        const geo = await GeoIPService.lookup(clientIp || '');
+        const geoLookup = await GeoIPService.lookup(clientIp || '');
+
+        // Merge sources: Override (Headers/Payload) > Lookup (API/DB)
+        const geo = {
+            country: geoOverride?.country || geoLookup?.country || null,
+            countryCode: geoOverride?.countryCode || geoLookup?.countryCode || null,
+            city: geoOverride?.city || geoLookup?.city || null,
+            lat: geoOverride?.lat || geoLookup?.lat || null,
+            lon: geoOverride?.lon || geoLookup?.lon || null,
+            isp: geoOverride?.isp || geoLookup?.isp || null
+        };
 
         const canonicalDict = Object.fromEntries(
             Object.keys(event).sort().map(key => [key, (event as any)[key]])

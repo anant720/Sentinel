@@ -143,7 +143,12 @@ export class IngestionController {
             const result = await IngestionService.ingest(request.orgId, {
                 event,
                 signature,
-            }, clientIp);
+            }, clientIp, {
+                country: (request.headers['cf-ipcountry'] as string) || (request.headers['x-vercel-ip-country'] as string),
+                city: (request.headers['x-vercel-ip-city'] as string),
+                lat: payload.lat || payload.latitude,
+                lon: payload.lon || payload.longitude || payload.lng || payload.long
+            });
             MetricsService.eventsIngestedTotal.labels(event.event_type).inc();
             return reply.code(202).send({ message: 'Event accepted', event_id: result.id });
         } catch (err: unknown) {
