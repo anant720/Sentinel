@@ -29,6 +29,7 @@ type RangeKey = '1d' | '15d' | '1m';
 export default function DashboardPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { user } = useAuthStore();
   const [range, setRange] = useState<RangeKey>('1d');
 
   const { data: stats } = useQuery({
@@ -224,13 +225,28 @@ export default function DashboardPage() {
                  <BrainCircuit className="text-green-500" size={16} />
                </div>
                <div>
-                 <h3 className="text-xs font-bold uppercase tracking-widest">Detection Engine</h3>
-                 <p className="text-[9px] text-gray-500 font-bold uppercase tracking-tighter">7 Core Rules Active</p>
+                 <div className="flex items-center gap-2">
+                   <h3 className="text-xs font-bold uppercase tracking-widest">Detection Engine</h3>
+                   {/* Secure Tunnel Indicator */}
+                   {user?.e2ee_enabled && (
+                     <div className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-500/10 border border-indigo-500/20 rounded-md">
+                       <Shield className="text-indigo-400" size={10} />
+                       <span className="text-[8px] text-indigo-400 font-bold uppercase tracking-wider">
+                         Secure Tunnel Active
+                       </span>
+                     </div>
+                   )}
+                 </div>
+                 <p className="text-[9px] text-gray-500 font-bold uppercase tracking-tighter">
+                   {stats?.activeRules ?? 8} Core Rules Active
+                 </p>
                </div>
              </div>
              <div className="flex items-center gap-1.5 px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-lg">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[9px] text-green-500 font-bold uppercase tracking-tighter">Monitoring</span>
+                <div className={`w-1.5 h-1.5 rounded-full ${liveFeed ? 'bg-green-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
+                <span className={`text-[9px] font-bold uppercase tracking-tighter ${liveFeed ? 'text-green-500' : 'text-yellow-500'}`}>
+                  {liveFeed ? 'Monitoring' : 'Connecting...'}
+                </span>
              </div>
           </div>
           
@@ -238,11 +254,15 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 gap-2 mb-4">
               <div className="flex items-center justify-between px-3 py-2 bg-white/[0.02] border border-white/5 rounded-lg">
                 <span className="text-[9px] font-bold text-gray-400 uppercase">Live Telemetry</span>
-                <span className="text-[9px] font-bold text-green-500 uppercase">Operational</span>
+                <span className={`text-[9px] font-bold uppercase ${liveFeed ? 'text-green-500' : 'text-yellow-500'}`}>
+                  {liveFeed ? 'Operational' : 'Waiting...'}
+                </span>
               </div>
               <div className="flex items-center justify-between px-3 py-2 bg-white/[0.02] border border-white/5 rounded-lg">
                 <span className="text-[9px] font-bold text-gray-400 uppercase">Heuristic Analysis</span>
-                <span className="text-[9px] font-bold text-green-500 uppercase">Active</span>
+                <span className={`text-[9px] font-bold uppercase ${(stats?.activeRules || 0) > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {(stats?.activeRules || 0) > 0 ? 'Active' : 'Disabled'}
+                </span>
               </div>
             </div>
 

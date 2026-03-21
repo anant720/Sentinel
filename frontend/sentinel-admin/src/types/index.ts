@@ -24,6 +24,7 @@ export interface User {
     slug: string;
   };
   is_active?: boolean;
+  e2ee_enabled?: boolean;
   last_seen_at?: string;
   presence?: 'online' | 'away' | 'offline';
   created_at?: string;

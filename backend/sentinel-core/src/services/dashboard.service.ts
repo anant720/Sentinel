@@ -26,16 +26,24 @@ export class DashboardService {
 
         // Geographic Nodes: distinct attacker IPs seen in the last 24 hours
         const nodesResult = await db.query(
-            `SELECT COUNT(DISTINCT ip_address) as count FROM audit_logs WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
+            `SELECT COUNT(DISTINCT (payload->>'ip_address')) as count FROM events WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
             [orgId]
         );
         const geographicNodes = parseInt(nodesResult.rows[0].count, 10) || 0;
+
+        // Active Detection Rules
+        const rulesResult = await db.query(
+            `SELECT COUNT(*) as count FROM organization_detection_settings WHERE organization_id = $1 AND is_enabled = true`,
+            [orgId]
+        );
+        const activeRules = parseInt(rulesResult.rows[0].count, 10) || 0;
 
         return {
             totalIdentities,
             criticalThreats,
             detectionVelocity,
-            geographicNodes
+            geographicNodes,
+            activeRules
         };
     }
 
