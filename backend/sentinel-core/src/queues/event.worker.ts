@@ -115,9 +115,10 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
                          geo_city = $4,
                          geo_lat = $5,
                          geo_lon = $6,
-                         geo_isp = $7
-                     WHERE id = $8`,
-                    [riskScore, geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp, eventId]
+                         geo_isp = $7,
+                         ip_address = CASE WHEN ip_address IS NULL THEN $8 ELSE ip_address END
+                     WHERE id = $9`,
+                    [riskScore, geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp, ip, eventId]
                 );
             } else {
                 await db.query(`UPDATE events SET risk_score = $1 WHERE id = $2`, [riskScore, eventId]);

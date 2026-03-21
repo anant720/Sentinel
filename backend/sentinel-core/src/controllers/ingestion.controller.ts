@@ -128,10 +128,16 @@ export class IngestionController {
 
         // ── 4. Forward to service
         try {
+            // Enhanced IP Resolution: Prefer request.ip but fallback to payload if request.ip is loopback/missing
+            let clientIp = request.ip;
+            if (!clientIp || clientIp === '127.0.0.1' || clientIp === '::1') {
+                clientIp = (payload.ip_address as string) || (payload.ip as string) || request.ip;
+            }
+
             const result = await IngestionService.ingest(request.orgId, {
                 event,
                 signature,
-            }, request.ip); // Explicitly pass the server-verified IP
+            }, clientIp);
             MetricsService.eventsIngestedTotal.labels(event.event_type).inc();
             return reply.code(202).send({ message: 'Event accepted', event_id: result.id });
         } catch (err: unknown) {
