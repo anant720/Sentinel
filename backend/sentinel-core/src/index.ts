@@ -29,6 +29,7 @@ import { dbManager } from './db/dbManager.js';
 import { BroadcastService, SECURITY_EVENT_CHANNEL } from './services/broadcast.service.js';
 import { Redis } from 'ioredis';
 import { createVerifier } from 'fast-jwt';
+import { migrator } from './db/migrator.js';
 
 // ---------------------------------------------------------------------------
 // Server Bootstrap
@@ -673,8 +674,9 @@ async function bootstrap() {
             });
 
             // ------------------------------------------------------------------
-            // 6. Start
+            // 6. DB Migrations & Start
             // ------------------------------------------------------------------
+            await migrator.migrate();
             await fastify.listen({ port: config.PORT, host: config.HOST });
             logger.info(`🚀 Sentinel Core started on http://${config.HOST}:${config.PORT}`);
             logger.info('WebSocket server ready at /ws');

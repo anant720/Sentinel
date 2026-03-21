@@ -35,9 +35,9 @@ export class PluginLoader {
             const stat = fs.statSync(fullPath);
 
             // In production (dist), we load .js. In development (src), we load .ts.
-            const isLoadable = file.endsWith('.js') || file.endsWith('.ts');
-
-            if (stat.isFile() && isLoadable) {
+             const isLoadable = (file.endsWith('.js') || file.endsWith('.ts')) && !file.endsWith('.d.ts');
+ 
+             if (stat.isFile() && isLoadable) {
                 try {
                     // Correct absolute path for ESM import on Linux/Render
                     const fileUrl = `file://${fullPath}`;

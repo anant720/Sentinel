@@ -6,7 +6,7 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && (mkdir -p dist/db/migrations || true) && cp src/db/migrations/*.sql dist/db/migrations/",
     "start": "node dist/index.js",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""
