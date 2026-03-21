@@ -37,24 +37,29 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 
 ## 2️⃣ Architecture Diagram
 
-```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         SENTINEL PLATFORM v26.3.2                       │
 │                                                                         │
-│  ┌─────────────────┐      HTTPS / REST      ┌────────────────────┐      │
-│  │  Vercel         │ ◀─── (JWT / API Key) ──▶│  Render            │      │
-│  │  (Frontend)     │                        │  (Backend API)     │      │
-│  └─────────────────┘      WebSocket Push     └─────────┬──────────┘      │
-│          ▲           ◀────── /ws ───────────┘          │                │
+│  ┌─────────────────┐      HTTPS / E2EE      ┌────────────────────┐      │
+│  │  Vercel         │ ◀─── (JWT / API Key) ──▶│  Render / Docker   │      │
+│  │  (Frontend SOC) │                        │  (Sentinel Core)   │      │
+│  └───────▲─────────┘                        └─────────┬──────────┘      │
 │          │                                             │                │
+│          │            (Optional Real-time)             │ (Critical Path)│
 │  ┌───────┴─────────┐                         ┌─────────▼───────────┐    │
-│  │  Upstash        │ ◀─── Pub/Sub Channel ──▶│  Supabase           │    │
-│  │  (Redis)        │                         │  (PostgreSQL)       │    │
+│  │  Upstash        │ ◀─────── /ws ───────────┤  Supabase           │    │
+│  │  (Redis)        │   (Degraded Fallback)   │  (PostgreSQL)       │    │
 │  └─────────────────┘                         └─────────────────────┘    │
 │                                                                         │
 │  Mailing: Brevo API (Transactional)                                     │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+### 🛡️ Resilience Architecture (Self-Healing Core)
+In v26.3.2, Sentinel is engineered for **High Availability** even if infrastructure components fail.
+- **Fail-Soft Redis**: If Upstash/Redis becomes unreachable, the platform automatically enters **Degraded Mode**. 
+- **Persistence Priority**: Security events are always persisted to Supabase first. Redis is only used for the "Live WebSocket Stream". 
+- **Zero-Block Ingestion**: API requests never wait for the broadcast layer, ensuring security ingestion is never delayed by live-monitoring latency.
 
 ### Technical Data Flow
 1. **Ingest** — An attacker hits your corporate portal. The Sentinel SDK/Middleware fires a POST to `/events/log`.

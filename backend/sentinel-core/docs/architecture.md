@@ -1,26 +1,42 @@
-# Sentinel Core Architecture
+# Sentinel Core Architecture (v26.3.2)
 
-## System Topography
+Sentinel Core is a high-performance security telemetry engine engineered for extreme throughput and high availability.
 
-Sentinel Core relies on a heavily decoupled distributed microservices architecture built atop Node.js (Fastify) explicitly engineered for extreme telemetry throughput and immediate threat correlation. 
+## 🧭 System Topography
+
+The system utilizes a decoupled microservices architecture optimized for real-time threat correlation and fail-safe persistence.
 
 ```mermaid
 graph TD
-    Internet-->|HTTPS/TCP| Cloudflare[CDN / Edge]
-    Cloudflare-->NGINX[API Gateway / TLS Termination]
-    NGINX-->|Rate Limited 10kb| API[Sentinel Fastify API]
-    API-->|O(1) Memory| Redis[Redis Security Layer]
-    API-->|Async| BullMQ[Job Queues]
-    BullMQ-->|Scale| Workers[Detection Workers]
-    Workers-->|Session Pooled| PgBouncer[Connection Supervisor]
-    PgBouncer-->PostgreSQL[(Core Database)]
+    Internet-->|HTTPS/E2EE| API[Sentinel Fastify API]
+    API-->|Critical Path| PgBouncer[Connection Supervisor]
+    PgBouncer-->PostgreSQL[(Supabase / PG)]
     
-    API-->|Logs| Loki[Grafana Loki]
-    API-->|RED| Prometheus[Metrics Engine]
+    API-.->|Optional/Live| Redis[Upstash Redis]
+    Redis-->|Pub/Sub| SOC[SOC Dashboard]
+    
+    API-->|Async Ingest| BullMQ[Job Queues]
+    BullMQ-->Workers[Detection Workers]
+    Workers-->PgBouncer
 ```
 
-## Architectural Goals
+## 🛡️ Resilience Architecture (Redis Failover)
 
-1. **Horizontal Scalability:** The `docker-compose` topology specifically delineates the HTTP ingestion `api` cluster out from the intensive computational boundary of the `workers`. Each boundary can scale to dozens of replicas natively relying on Redis Pub/Sub locking securely.
-2. **Stateful High Throughput:** Using PgBouncer avoids Postgres out-of-memory errors by natively pooling physical connections.
-3. **Canonical Payloads:** Ensuring JSON inputs are cryptographically formatted natively catching all Reversal drifts.
+A core innovation in v26.3.2 is the **Redis Resilience Layer**. Unlike most telemetry systems that crash when the cache layer fails, Sentinel implements a **"Degraded Mode"** capability:
+
+1. **Self-Healing Connection**: The `redisClient` utilizes a custom heartbeat and `isRedisHealthy` flag.
+2. **Fail-Closed Logic**: If Upstash/Redis goes down, the API immediately bypasses the WebSocket broadcast layer to avoid hanging the request.
+3. **Canonical Persistence**: Security events are ALWAYS written to PostgreSQL first. If Redis is down, the events are still safely stored—only the "Live Stream" on the dashboard is paused until connectivity is restored.
+4. **Offline Queueing Disabled**: Specifically configured with `enableOfflineQueue: false` to prevent memory bloat during Redis outages.
+
+## 🔐 Security & E2EE Layer
+
+- **Client-Side Encryption**: Telemetry payloads are encrypted with AES-GCM-256 before hitting the API.
+- **Zero-Knowledge API**: The `backend` processes metadata for risk scoring but never sees the raw sensitive content of the events.
+- **Master-Org Lockdown**: Multi-tenant isolation is enforced at the DB level via `organization_id` scoping in every query.
+
+## ⚡ Technical Foundations
+
+1. **Horizontal Scalability**: Stateless API nodes can scale indefinitely.
+2. **PgBouncer Pooling**: Ensures stable database performance under high concurrent ingestion.
+3. **Fail-Fast Secrets**: Configuration engine prevents startup if production credentials are insecure.
