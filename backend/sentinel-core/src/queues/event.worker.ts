@@ -89,7 +89,7 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
                 payload: {
                     ...payload,
                     ip_address: event.ip_address || payload.ip_address,
-                    location: GeoIPService.lookup(event.ip_address || payload.ip_address || '')
+                    location: await GeoIPService.lookup(event.ip_address || payload.ip_address || '')
                 }
             };
 
@@ -104,7 +104,7 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
 
             // ── 6. GeoIP Enrichment ────────────────────────────────────────────
             const ip = event.ip_address || payload.ip_address || payload.ip || payload.source_ip || '';
-            const geo = GeoIPService.lookup(ip);
+            const geo = await GeoIPService.lookup(ip);
 
             if (geo) {
                 await db.query(

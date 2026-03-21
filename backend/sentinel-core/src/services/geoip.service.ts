@@ -10,6 +10,7 @@
  */
 
 import geoip from 'geoip-lite';
+import fetch from 'node-fetch';
 
 export interface GeoResult {
     country: string;       // e.g. "United States"
@@ -17,7 +18,7 @@ export interface GeoResult {
     city: string;          // e.g. "Los Angeles"
     lat: number;
     lon: number;
-    isp: string;           // Not in geoip-lite — we leave as empty string
+    isp: string;           // e.g. "Jio"
 }
 
 // Private/reserved IP ranges to skip enrichment
@@ -44,7 +45,7 @@ export class GeoIPService {
      * Resolves an IP address to geographic metadata.
      * Returns null for private IPs, loopback, or unknown locations.
      */
-    static lookup(ip: string): GeoResult | null {
+    static async lookup(ip: string): Promise<GeoResult | null> {
         if (!ip || isPrivateIP(ip)) return null;
 
         // Cache hit
@@ -55,23 +56,50 @@ export class GeoIPService {
             cache.delete(cache.keys().next().value!);
         }
 
+        // 1. Try local geoip-lite (if DB exists)
         const geo = geoip.lookup(ip);
-        if (!geo || !geo.ll || geo.ll.length < 2) {
-            cache.set(ip, null);
-            return null;
+        if (geo && geo.ll && geo.ll.length >= 2) {
+            const result: GeoResult = {
+                country: geo.country || 'Unknown',
+                countryCode: geo.country || 'XX',
+                city: geo.city || '',
+                lat: geo.ll[0],
+                lon: geo.ll[1],
+                isp: (geo as any).org || '',
+            };
+            cache.set(ip, result);
+            return result;
         }
 
-        const result: GeoResult = {
-            country: geo.country || 'Unknown',
-            countryCode: geo.country || 'XX',
-            city: geo.city || '',
-            lat: geo.ll[0],
-            lon: geo.ll[1],
-            isp: (geo as any).org || '',
-        };
+        // 2. Fallback to free API (ip-api.com) for production environments without local DB
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2000); // 2s timeout for worker safety
 
-        cache.set(ip, result);
-        return result;
+            const response = await fetch(`http://ip-api.com/json/${ip}`, { signal: controller.signal });
+            clearTimeout(timeout);
+
+            if (response.ok) {
+                const data = (await response.json()) as any;
+                if (data.status === 'success') {
+                    const result: GeoResult = {
+                        country: data.country || 'Unknown',
+                        countryCode: data.countryCode || 'XX',
+                        city: data.city || '',
+                        lat: data.lat || 0,
+                        lon: data.lon || 0,
+                        isp: data.isp || data.org || '',
+                    };
+                    cache.set(ip, result);
+                    return result;
+                }
+            }
+        } catch (err) {
+            // Silently fail to light update if API is down/throttled
+        }
+
+        cache.set(ip, null);
+        return null;
     }
 
     /** Returns cache stats for monitoring. */
