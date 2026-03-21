@@ -71,31 +71,49 @@ export class GeoIPService {
             return result;
         }
 
-        // 2. Fallback to free API (ip-api.com) for production environments without local DB
-        try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 2000); // 2s timeout for worker safety
+        // 2. Fallback to HTTPS APIs (multiple for resilience)
+        const apiAttempts = [
+            async () => {
+                const r = await fetch(`https://ip-api.com/json/${ip}?fields=status,country,countryCode,city,lat,lon,isp,org`, { signal: AbortSignal.timeout(3000) });
+                if (!r.ok) return null;
+                const d = await r.json() as any;
+                if (d.status !== 'success') return null;
+                return { country: d.country, countryCode: d.countryCode, city: d.city, lat: d.lat, lon: d.lon, isp: d.isp || d.org };
+            },
+            async () => {
+                const r = await fetch(`https://ipapi.co/${ip}/json/`, { signal: AbortSignal.timeout(3000) });
+                if (!r.ok) return null;
+                const d = await r.json() as any;
+                if (d.error) return null;
+                return { country: d.country_name, countryCode: d.country_code, city: d.city, lat: d.latitude, lon: d.longitude, isp: d.org };
+            },
+            async () => {
+                const r = await fetch(`https://ipwho.is/${ip}`, { signal: AbortSignal.timeout(3000) });
+                if (!r.ok) return null;
+                const d = await r.json() as any;
+                if (!d.success) return null;
+                return { country: d.country, countryCode: d.country_code, city: d.city, lat: d.latitude, lon: d.longitude, isp: d.connection?.isp || '' };
+            }
+        ];
 
-            const response = await fetch(`http://ip-api.com/json/${ip}`, { signal: controller.signal });
-            clearTimeout(timeout);
-
-            if (response.ok) {
-                const data = (await response.json()) as any;
-                if (data.status === 'success') {
+        for (const attempt of apiAttempts) {
+            try {
+                const data = await attempt();
+                if (data) {
                     const result: GeoResult = {
                         country: data.country || 'Unknown',
                         countryCode: data.countryCode || 'XX',
                         city: data.city || '',
                         lat: data.lat || 0,
                         lon: data.lon || 0,
-                        isp: data.isp || data.org || '',
+                        isp: data.isp || '',
                     };
                     cache.set(ip, result);
                     return result;
                 }
+            } catch {
+                // Try next API
             }
-        } catch (err) {
-            // Silently fail to light update if API is down/throttled
         }
 
         cache.set(ip, null);

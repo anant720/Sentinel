@@ -79,7 +79,14 @@ export class IngestionService {
 
         // ── 2.5 Multi-Source Geo Enrichment (The "New Way") ───────────────
         const { GeoIPService } = await import('./geoip.service.js');
-        const geoLookup = await GeoIPService.lookup(clientIp || '');
+        
+        // Final IP Safety Net: if clientIp slipped through as null/loopback, extract from payload
+        const LOOPBACK = ['127.0.0.1', '::1', '::ffff:127.0.0.1', '0.0.0.0', '', undefined, null];
+        const resolvedIp = LOOPBACK.includes(clientIp as any)
+            ? (payload.ip_address || payload.ip || payload.source_ip || clientIp || '')
+            : clientIp || payload.ip_address || '';
+
+        const geoLookup = await GeoIPService.lookup(resolvedIp);
 
         // GPS Overrides (Coordinates)
         const lat = parseFloat(geoOverride?.lat || payload.lat || payload.latitude);
@@ -121,7 +128,7 @@ export class IngestionService {
                 event.payload, 
                 signature, 
                 integrityHash, 
-                clientIp,
+                resolvedIp,
                 geo.country,
                 geo.countryCode,
                 geo.city,
