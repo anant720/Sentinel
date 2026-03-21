@@ -102,27 +102,8 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
             const riskScore = RiskAssessmentService.evaluate({ type: event.event_type, payload });
             const severity = RiskAssessmentService.getSeverity(riskScore);
 
-            // ── 6. GeoIP Enrichment ────────────────────────────────────────────
-            const ip = event.ip_address || payload.ip_address || payload.ip || payload.source_ip || '';
-            const geo = await GeoIPService.lookup(ip);
-
-            if (geo) {
-                await db.query(
-                    `UPDATE events
-                     SET risk_score = $1,
-                         geo_country = $2,
-                         geo_country_code = $3,
-                         geo_city = $4,
-                         geo_lat = $5,
-                         geo_lon = $6,
-                         geo_isp = $7,
-                         ip_address = CASE WHEN ip_address IS NULL THEN $8 ELSE ip_address END
-                     WHERE id = $9`,
-                    [riskScore, geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp, ip, eventId]
-                );
-            } else {
-                await db.query(`UPDATE events SET risk_score = $1 WHERE id = $2`, [riskScore, eventId]);
-            }
+            // ── 6. Update Risk Score in DB ────────────────────────────────────
+            await db.query(`UPDATE events SET risk_score = $1 WHERE id = $2`, [riskScore, eventId]);
 
             // Execute asynchronous heuristic rule registry natively
             await detectionEngine.execute(detectionEvent, context);
@@ -137,13 +118,7 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
                 payload: {
                     ...detectionEvent.payload,
                     risk_score: riskScore,
-                    location: geo ? {
-                        country: geo.country,
-                        country_code: geo.countryCode,
-                        city: geo.city,
-                        lat: geo.lat,
-                        lon: geo.lon,
-                    } : null,
+                    location: detectionEvent.payload.location || null
                 }
             });
 

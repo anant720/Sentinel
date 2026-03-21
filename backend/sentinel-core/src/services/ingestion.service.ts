@@ -66,9 +66,9 @@ export class IngestionService {
         }
 
         const { event, signature } = parsed.data;
+        const payload = (event.payload as any) || {};
 
         // ── 2. Canonical contract validation ─────────────────────────────
-        // Reject unknown event types or malformed typed payloads
         const contractCheck = validateCanonicalEvent(event.event_type, event.payload);
         if (!contractCheck.valid) {
             throw Object.assign(new Error('Event contract validation failed'), {
@@ -77,20 +77,37 @@ export class IngestionService {
             });
         }
 
-        // Hash binds all semantic fields — any mutation is detectable.
-        // We use the same canonical stringification locally.
+        // ── 2.5 Synchronous GeoIP Enrichment (Hardened visibility) ───────
+        const { GeoIPService } = await import('./geoip.service.js');
+        const geo = await GeoIPService.lookup(clientIp || '');
+
         const canonicalDict = Object.fromEntries(
             Object.keys(event).sort().map(key => [key, (event as any)[key]])
         );
         const integrityHash = computeIntegrityHash(JSON.stringify(canonicalDict));
 
-        // ── 3. DB insert (processed = false always) ───────────────────────
+        // ── 3. DB insert (enriched immediately) ──────────────────────────
         const result = await db.query(
             `INSERT INTO events
-                 (organization_id, device_id, event_type, payload, signature, integrity_hash, processed, ip_address)
-             VALUES ($1, $2, $3, $4, $5, $6, false, $7)
+                 (organization_id, device_id, event_type, payload, signature, integrity_hash, processed, 
+                  ip_address, geo_country, geo_country_code, geo_city, geo_lat, geo_lon, geo_isp)
+             VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8, $9, $10, $11, $12, $13)
              RETURNING id, created_at`,
-            [orgId, event.device_id, event.event_type, event.payload, signature, integrityHash, clientIp],
+            [
+                orgId, 
+                event.device_id, 
+                event.event_type, 
+                event.payload, 
+                signature, 
+                integrityHash, 
+                clientIp,
+                geo?.country || null,
+                geo?.countryCode || null,
+                geo?.city || null,
+                geo?.lat || null,
+                geo?.lon || null,
+                geo?.isp || null
+            ],
         );
 
         const stored = result.rows[0];
