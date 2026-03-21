@@ -16,13 +16,13 @@ export class DashboardService {
         );
         const criticalThreats = parseInt(alertsResult.rows[0].count, 10);
 
-        // Detection Velocity: count events in last hour as proxy
+        // Detection Velocity: count telemetry events in last hour
         const velocityResult = await db.query(
-            `SELECT COUNT(*) as count FROM audit_logs WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '1 hour'`,
+            `SELECT COUNT(*) as count FROM events WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '1 hour'`,
             [orgId]
         );
         const eventCount = parseInt(velocityResult.rows[0].count, 10);
-        const detectionVelocity = eventCount > 0 ? `${eventCount}/hr` : 'N/A';
+        const detectionVelocity = `${eventCount}/hr`;
 
         // Geographic Nodes: distinct attacker IPs seen in the last 24 hours
         const nodesResult = await db.query(
