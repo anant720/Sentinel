@@ -1,8 +1,11 @@
-# Sentinel Admin Console (Version 26.3.1)
+# Sentinel Admin Console (Version 26.3.2)
 
-This is the production-ready frontend for the Sentinel Cybersecurity Platform, deployed on Vercel and connected to a live Render/Supabase/Upstash backend.
+This is the production-ready frontend for the Sentinel Cybersecurity Platform.
 
-**Note:** This is a personal project intended for demonstration purposes.
+### **What's New in v26.3.2**
+- **🔐 End-to-End Encryption (E2EE)**: Sensitive telemetry data is encrypted on-the-fly using **AES-GCM** before leaving the client.
+- **🛡️ Client-Side Security**: All sensitive passwords are hashed locally (SHA-256) ensuring raw credentials are never transmitted.
+- **⚓ Multi-Tenant SOC**: Manage multiple organizations from a single unified command interface.
 
 ---
 

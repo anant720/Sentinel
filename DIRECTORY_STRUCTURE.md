@@ -1,6 +1,6 @@
 # Sentinel Directory Structure
 
-This document outlines the organization of the Sentinel monorepo for Version 26.3.0.
+This document outlines the organization of the Sentinel monorepo for Version 26.3.2.
 
 ```text
 sentinel/
@@ -22,6 +22,7 @@ sentinel/
 │   │   ├── types/               # TypeScript definitions
 │   │   └── workers/             # Background job processors
 │   ├── docker-compose.yml       # Production services (Redis, PostgreSQL)
+│   ├── README.md                # Backend Setup & Security Guide
 │   └── package.json             # Backend dependencies
 │
 ├── frontend/sentinel-admin/     # React + Vite Admin Console
