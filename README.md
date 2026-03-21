@@ -11,11 +11,11 @@
 
 ---
 
-- **🛡️ Production Hardening**: All hardcoded passwords, sensitive keys, and demo/test scripts have been permanently removed. The core now uses a strict "Fail-Fast" validation for environment secrets.
-- **🔐 End-to-End Encrypted Telemetry**: Sensitive event payloads are now encrypted client-side using **AES-GCM** before ingestion. The server only sees ciphertext.
-- **🛡️ Client-Side Password Hashing**: Passwords are now hashed locally (SHA-256) before transmission, ensuring raw credentials never touch our API.
-- **💠 Session-Only Master Keys**: Encryption keys are derived using **PBKDF2** and stored strictly in-memory (Zustand state).
-- **⚡ Transparent Decryption**: The SOC Dashboard performs on-the-fly decryption, maintaining true E2EE with zero performance lag.
+- **🛡️ Production Hardening**: Strict "Fail-Fast" validation for environment secrets, with an auto-migrator natively integrated for robust Render deployments.
+- **🔐 Total Zero-Knowledge E2EE**: Sensitive event payloads and organization detection structures are locally encrypted using **AES-GCM** with **PBKDF2** derived keys. The backend only stores ciphertext.
+- **📍 High-Fidelity Geo-Intelligence**: Advanced multi-layer location resolution (GPS + Cloudflare Headers + Nominatim API) providing exact street-level accuracy and prioritizing real locations (e.g. Pune) over fallback ISP hubs.
+- **🧠 Impossible Travel Detection**: A new high-frequency behavioral module tracking concurrent logins across physically impossible distances utilizing the Haversine formula.
+- **💓 High Availability & Uptime**: Designed with a Fail-Closed Redis integration, database-degradation hooks into a 503 strategy, and a **10-minute automated Uptime Monitor** that guarantees the Render backend stays warm and eliminates cold starts.
 
 ---
 
@@ -79,9 +79,10 @@ In v26.3.2, Sentinel is engineered for **High Availability** even if infrastruct
 - **Security Alert Engine** — Automatically raises Critical/High/Warning alerts when risk thresholds are crossed
 - **Risk Score Timeline** — Time-series chart of the organization's aggregate risk score
 
-### 🛡️ Threat Detection (7 Pluggable Rules)
+### 🛡️ Threat Detection (8 Pluggable Rules)
 | Rule | What It Catches |
 |------|----------------|
+| `impossible_travel` | Physical login velocity exceeding commercial jet speeds (800km/h) across geographic zones. |
 | `security_tool_detection` | Known scanner User-Agents (Nikto, SQLMap, Masscan, etc.) |
 | `rapid_failed_logins` | Burst of failed auth attempts from a single IP or account |
 | `directory_brute_force` | Rapid probing of enumerable paths (`/admin`, `/.env`, etc.) |
