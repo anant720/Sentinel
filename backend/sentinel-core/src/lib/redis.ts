@@ -56,6 +56,17 @@ export const connectRedis = async (): Promise<void> => {
         if (redisClient.status === 'wait' || redisClient.status === 'close') {
             await redisClient.connect();
         }
+
+        // Production Setup: Force Upstash serverless instances to use noeviction for BullMQ
+        if (config.isProd) {
+            try {
+                logger.info('Attempting to configure Redis maxmemory-policy to noeviction for BullMQ...');
+                await redisClient.config('SET', 'maxmemory-policy', 'noeviction');
+                logger.info('Redis maxmemory-policy configured to noeviction successfully.');
+            } catch (err: any) {
+                logger.warn({ err: err.message }, 'Failed to configure Redis maxmemory-policy. If jobs stall, ensure this is set manually in your provider dashboard.');
+            }
+        }
     } catch (err: any) {
         logger.error({ err: err.message }, 'Redis initial connection failed');
         isRedisHealthy = false;

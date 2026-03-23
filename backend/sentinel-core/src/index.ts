@@ -578,6 +578,8 @@ async function bootstrap() {
         try {
             await setupServer(fastify);
 
+            logger.info({ role: config.ROLE, env: config.NODE_ENV }, 'Environment Context Initialized');
+
             // ------------------------------------------------------------------
             // 5. External services & plugins
             // ------------------------------------------------------------------
@@ -752,3 +754,4 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export default {} as FastifyInstance;
+// Hot Reload Trigger 03/22/2026 20:05:52

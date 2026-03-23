@@ -88,7 +88,7 @@ export default function DashboardPage() {
   const cards = [
     { label: 'Total Identities', value: stats?.totalIdentities ?? 0, subValue: 'Active accounts', icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10' },
     { label: 'Critical Threats', value: stats?.criticalThreats ?? 0, subValue: 'Open critical alerts', icon: Shield, color: 'text-red-400', bg: 'bg-red-500/10' },
-    { label: 'Detection Velocity', value: stats?.detectionVelocity || 'N/A', subValue: 'Events last hour', icon: Zap, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+    { label: 'Detection Velocity', value: stats?.detectionVelocity || '0/hr', subValue: 'Events last hour', icon: Zap, color: 'text-orange-400', bg: 'bg-orange-500/10' },
     { label: 'Source IPs (24h)', value: stats?.geographicNodes ?? 0, subValue: 'Unique nodes detected', icon: Globe, color: 'text-purple-400', bg: 'bg-purple-500/10' },
   ];
 
