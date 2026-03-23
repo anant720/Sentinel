@@ -2,6 +2,25 @@ import api from '../api';
 import { useAuthStore } from '../store';
 import { CryptoService } from './crypto.service';
 
+/**
+ * Derives the correct password to send for privileged actions.
+ * For E2EE users (v2), password must be PBKDF2 hashed client-side first.
+ * For legacy users (v1), password is sent as-is (bcrypt comparison on server).
+ */
+async function derivePrivilegedPassword(rawPassword: string): Promise<string> {
+  const store = useAuthStore.getState();
+  // Check if the logged-in user is an E2EE (v2) user via the dedicated store field
+  const isE2EE = store.e2eeEnabled;
+  if (!isE2EE) return rawPassword;
+  // Use the same SHA-256 client-hash as the login flow
+  try {
+    const derived = await CryptoService.hashPasswordForAuth(rawPassword);
+    return derived;
+  } catch {
+    return rawPassword;
+  }
+}
+
 export const OrgService = {
   getUsers: async () => {
     const { data } = await api.get('/users');
@@ -9,12 +28,14 @@ export const OrgService = {
   },
 
   deleteUser: async (id: string, password: string) => {
-    const { data } = await api.delete(`/users/${id}`, { data: { password } });
+    const derivedPassword = await derivePrivilegedPassword(password);
+    const { data } = await api.delete(`/users/${id}`, { data: { password: derivedPassword } });
     return data;
   },
 
   updateUserRole: async (id: string, role: string, password: string) => {
-    const { data } = await api.patch(`/users/${id}/role`, { role, password });
+    const derivedPassword = await derivePrivilegedPassword(password);
+    const { data } = await api.patch(`/users/${id}/role`, { role, password: derivedPassword });
     return data;
   },
 
@@ -38,7 +59,7 @@ export const OrgService = {
   },
 
   invite: async (payload: { email: string; role: string }) => {
-    const { data } = await api.post('/organizations/invite', payload);
+    const { data } = await api.post('/organizations/invite', { email: payload.email, role: payload.role });
     return data;
   },
 

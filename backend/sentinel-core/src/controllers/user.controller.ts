@@ -60,9 +60,12 @@ export class UserController {
         const { role: newRole, password } = validation.data;
 
         // 0. Verify Actor's password (Re-authentication)
-        const actorRes = await db.query('SELECT password_hash FROM users WHERE id = $1', [actorId]);
+        const actorRes = await db.query('SELECT password_hash, password_version FROM users WHERE id = $1', [actorId]);
         const { AuthService } = await import('../services/auth.service.js');
-        const isAuthValid = await AuthService.comparePassword(password, actorRes.rows[0].password_hash);
+        // E2EE users (v2) send a client-side SHA-256 hash instead of raw plaintext
+        const isAuthValid = actorRes.rows[0].password_version === 'v2'
+            ? await AuthService.comparePasswordV2(password, actorRes.rows[0].password_hash)
+            : await AuthService.comparePassword(password, actorRes.rows[0].password_hash);
         if (!isAuthValid) {
             return reply.code(401).send({ error: 'Unauthorized', message: 'Invalid admin password for this privileged action' });
         }
@@ -168,9 +171,12 @@ export class UserController {
         }
         const { password } = deleteValidation.data;
 
-        const actorRes = await db.query('SELECT password_hash FROM users WHERE id = $1', [actorId]);
+        const actorRes = await db.query('SELECT password_hash, password_version FROM users WHERE id = $1', [actorId]);
         const { AuthService } = await import('../services/auth.service.js');
-        const isAuthValid = await AuthService.comparePassword(password, actorRes.rows[0].password_hash);
+        // E2EE users (v2) send a client-side SHA-256 hash instead of raw plaintext
+        const isAuthValid = actorRes.rows[0].password_version === 'v2'
+            ? await AuthService.comparePasswordV2(password, actorRes.rows[0].password_hash)
+            : await AuthService.comparePassword(password, actorRes.rows[0].password_hash);
         if (!isAuthValid) {
             return reply.code(401).send({ error: 'Unauthorized', message: 'Invalid admin password' });
         }

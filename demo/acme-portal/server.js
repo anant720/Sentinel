@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 4000;
 
 // ── Sentinel Config (hidden from all users — server-side only) ──
 const SENTINEL_URL = process.env.SENTINEL_URL || 'http://localhost:3001';
-const SENTINEL_API_KEY = process.env.SENTINEL_API_KEY || 'sk_sentinel_dK-rWnNFGfP8lUBdWGQQG48nXBntFvsJuITeS4W8-lA';
+const SENTINEL_API_KEY = process.env.SENTINEL_API_KEY || 'sk_sentinel_JK5MJcSYT6Zw-VNLNNw2tsAqwD73C0IObWehSKIyPSQ';
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
 
 // Helper to get self URL for reporting
