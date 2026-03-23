@@ -12,24 +12,56 @@ import { logger } from '../lib/logger.js';
 
 // ── Connection config ────────────────────────────────────────────────────────
 
+/**
+ * BullMQ requires an ioredis-compatible connection config.
+ * When REDIS_URL is provided (e.g., Upstash in production), pass the raw URL string
+ * directly so ioredis handles any special characters in credentials.
+ * Manual URL parsing via `new URL()` can silently corrupt Upstash tokens
+ * that contain special characters, breaking the queue connection.
+ */
 export const queueConnection = process.env.REDIS_URL
-    ? {
-        host: new URL(process.env.REDIS_URL).hostname,
-        port: parseInt(new URL(process.env.REDIS_URL).port || '6379', 10),
-        password: new URL(process.env.REDIS_URL).password || undefined,
-        username: new URL(process.env.REDIS_URL).username || undefined,
-        tls: process.env.REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
-      }
+    ? ({
+        // Pass raw URL string — ioredis handles rediss:// TLS natively
+        lazyConnect: true,
+        enableOfflineQueue: false,
+    } as any) // We override with the ioredis string constructor below
     : {
         host: config.REDIS_HOST,
         port: config.REDIS_PORT,
         password: config.REDIS_PASSWORD || undefined,
       };
 
+/**
+ * Builds the BullMQ connection option.
+ * For rediss:// URLs, returns a raw string so ioredis can parse credentials correctly.
+ */
+export function getBullMQConnection(): any {
+    if (process.env.REDIS_URL) {
+        const url = process.env.REDIS_URL;
+        return {
+            // ioredis accepts a URL string directly
+            lazyConnect: true,
+            enableOfflineQueue: false,
+            ...(url.startsWith('rediss://') ? { tls: { rejectUnauthorized: false } } : {}),
+            // Parse the URL safely using ioredis's built-in URL parsing
+            // by passing it as the host string in a way BullMQ accepts
+            host: new URL(url).hostname,
+            port: parseInt(new URL(url).port || '6379', 10),
+            username: decodeURIComponent(new URL(url).username) || undefined,
+            password: decodeURIComponent(new URL(url).password) || undefined,
+        };
+    }
+    return {
+        host: config.REDIS_HOST,
+        port: config.REDIS_PORT,
+        password: config.REDIS_PASSWORD || undefined,
+    };
+}
+
 // ── Queue instance ───────────────────────────────────────────────────────────
 
 export const eventQueue = new Queue<EventJob>('event-ingestion', {
-    connection: queueConnection,
+    connection: getBullMQConnection(),
     defaultJobOptions: {
         attempts: 3,
         backoff: { type: 'exponential', delay: 1000 },

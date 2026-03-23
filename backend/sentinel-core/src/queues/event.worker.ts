@@ -18,7 +18,7 @@
 import { Worker, Job } from 'bullmq';
 import { db } from '../lib/database.js';
 import { logger } from '../lib/logger.js';
-import { EventJob, queueConnection } from './event.queue.js';
+import { EventJob, getBullMQConnection } from './event.queue.js';
 import { detectionEngine } from '../detection/engine.js';
 import { redisClient } from '../lib/redis.js';
 import { MetricsService } from '../services/metrics.service.js';
@@ -142,7 +142,7 @@ export const eventWorker = new Worker<EventJob>(
     'event-ingestion',
     processEvent,
     {
-        connection: queueConnection,
+        connection: getBullMQConnection(),
         concurrency: 5,
     },
 );
