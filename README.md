@@ -91,6 +91,11 @@ In v26.3.2, Sentinel is engineered for **High Availability** even if infrastruct
 | `fingerprint_campaign` | Systematic path/header probing indicating reconnaissance |
 | `risk_scoring` | Aggregate behavioral risk index across all signal types |
 
+#### The 3 Core Detection Approaches
+1. **Signature-Based (The "Bouncer"):** Checks against known lists. If a request uses a known hacking tool's User-Agent or requests sensitive file paths, it’s instantly blocked.
+2. **Threshold-Based (The "Speed Camera"):** Allows normal traffic but blocks IPs that act too fast, such as triggering a 60-request burst within 1 minute or failing 5 logins rapidly.
+3. **Behavioral-Based (The "Detective"):** Looks for suspicious patterns over time, such as Credential Stuffing (many IPs attacking one account) or Password Spraying (one IP attacking many accounts slowly).
+
 ### 🏢 Multi-Tenant Architecture
 - Every API request is logically scoped to an `organization_id`
 - Multiple organizations share one instance with zero data spillage
