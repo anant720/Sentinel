@@ -2,41 +2,59 @@ import { db } from '../lib/database.js';
 
 export class DashboardService {
     static async getAggregateMetrics(orgId: string) {
-        // Total identities
-        const usersResult = await db.query(
-            `SELECT COUNT(*) as count FROM users WHERE organization_id = $1`,
-            [orgId]
-        );
-        const totalIdentities = parseInt(usersResult.rows[0].count, 10);
+        // Each query is individually fault-tolerant so a missing/failing table
+        // cannot crash the entire /dashboard/stats endpoint with a 500.
 
-        // Critical Threats (unresolved alerts with critical severity)
-        const alertsResult = await db.query(
-            `SELECT COUNT(*) as count FROM alerts WHERE organization_id = $1 AND severity = 'critical' AND status != 'RESOLVED'`,
-            [orgId]
-        );
-        const criticalThreats = parseInt(alertsResult.rows[0].count, 10);
+        // Total identities
+        let totalIdentities = 0;
+        try {
+            const usersResult = await db.query(
+                `SELECT COUNT(*) as count FROM users WHERE organization_id = $1`,
+                [orgId]
+            );
+            totalIdentities = parseInt(usersResult.rows[0].count, 10) || 0;
+        } catch { /* non-blocking */ }
+
+        // Critical Threats (unresolved alerts)
+        let criticalThreats = 0;
+        try {
+            const alertsResult = await db.query(
+                `SELECT COUNT(*) as count FROM alerts WHERE organization_id = $1 AND status != 'RESOLVED'`,
+                [orgId]
+            );
+            criticalThreats = parseInt(alertsResult.rows[0].count, 10) || 0;
+        } catch { /* non-blocking */ }
 
         // Detection Velocity: count telemetry events in last hour
-        const velocityResult = await db.query(
-            `SELECT COUNT(*) as count FROM events WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '1 hour'`,
-            [orgId]
-        );
-        const eventCount = parseInt(velocityResult.rows[0].count, 10);
-        const detectionVelocity = `${eventCount}/hr`;
+        let detectionVelocity = '0/hr';
+        try {
+            const velocityResult = await db.query(
+                `SELECT COUNT(*) as count FROM events WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '1 hour'`,
+                [orgId]
+            );
+            const eventCount = parseInt(velocityResult.rows[0].count, 10) || 0;
+            detectionVelocity = `${eventCount}/hr`;
+        } catch { /* non-blocking */ }
 
         // Geographic Nodes: distinct attacker IPs seen in the last 24 hours
-        const nodesResult = await db.query(
-            `SELECT COUNT(DISTINCT (payload->>'ip_address')) as count FROM events WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
-            [orgId]
-        );
-        const geographicNodes = parseInt(nodesResult.rows[0].count, 10) || 0;
+        let geographicNodes = 0;
+        try {
+            const nodesResult = await db.query(
+                `SELECT COUNT(DISTINCT (payload->>'ip_address')) as count FROM events WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
+                [orgId]
+            );
+            geographicNodes = parseInt(nodesResult.rows[0].count, 10) || 0;
+        } catch { /* non-blocking */ }
 
-        // Active Detection Rules
-        const rulesResult = await db.query(
-            `SELECT COUNT(*) as count FROM organization_detection_settings WHERE organization_id = $1 AND is_enabled = true`,
-            [orgId]
-        );
-        const activeRules = parseInt(rulesResult.rows[0].count, 10) || 0;
+        // Active Detection Rules — may not exist if migration hasn't run yet
+        let activeRules = 0;
+        try {
+            const rulesResult = await db.query(
+                `SELECT COUNT(*) as count FROM organization_detection_settings WHERE organization_id = $1 AND enabled = true`,
+                [orgId]
+            );
+            activeRules = parseInt(rulesResult.rows[0].count, 10) || 0;
+        } catch { /* table may not exist yet — safe fallback */ }
 
         return {
             totalIdentities,
