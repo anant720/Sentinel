@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 4000;
 
 // ── Sentinel Config (hidden from all users — server-side only) ──
 const SENTINEL_URL = process.env.SENTINEL_URL || 'http://localhost:3001';
-const SENTINEL_API_KEY = process.env.SENTINEL_API_KEY || 'sk_sentinel_JK5MJcSYT6Zw-VNLNNw2tsAqwD73C0IObWehSKIyPSQ';
+const SENTINEL_API_KEY = process.env.SENTINEL_API_KEY || 'sk_sentinel_0Qc-1cFYBrGWFZLlUm9-qtjV8y9zfNRUjrUNFxJKQ-4';
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
 
 // Helper to get self URL for reporting
@@ -134,6 +134,46 @@ async function reportToSentinel(eventType, payload) {
     } catch (e) {
         console.log(`[SENTINEL] ⚠ Network error (is Sentinel running?): ${e.message}`);
     }
+}
+
+async function evaluateWithSentinel(eventType, payload) {
+    if (!SENTINEL_API_KEY || SENTINEL_API_KEY === 'PASTE_YOUR_API_KEY_HERE') {
+        return { action: 'allow', risk_score: 0, reason: 'No API Key' };
+    }
+
+    payload.stream_source = 'API';
+    const ipString = payload.ip_address || '127.0.0.1';
+    const locIndex = ipString.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % MOCK_LOCATIONS.length;
+    payload.location = MOCK_LOCATIONS[locIndex];
+
+    try {
+        const sentinelUrl = SENTINEL_URL.replace('localhost', '127.0.0.1');
+        const res = await fetch(`${sentinelUrl}/evaluate`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${SENTINEL_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                event_type: eventType, 
+                email: payload.email, 
+                ip_address: payload.ip_address, 
+                user_agent: payload.user_agent, 
+                device_id: payload.device_id, 
+                payload 
+            }),
+        });
+        if (res.ok) {
+            return await res.json();
+        } else {
+            console.log(`[SENTINEL EVALUATE] ❌ failed: ${res.status}`);
+        }
+    } catch (e) {
+        console.log(`[SENTINEL EVALUATE] ⚠ Network error: ${e.message}`);
+    }
+    
+    // Fail Open if Sentinel is down so we don't lock out legitimate users
+    return { action: 'allow', risk_score: 0, reason: 'Fail Open' };
 }
 
 // ── Middleware ──
@@ -264,6 +304,34 @@ app.post('/api/login', async (req, res) => {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
     const ua = req.headers['user-agent'] || 'unknown';
 
+    // ── 1. ASK SENTINEL FIRST (Inline Enforcement) ──
+    const device_id = req.body.device_id || req.cookies?.device_id || 'unknown_device';
+    const decision = await evaluateWithSentinel('pre_authentication', {
+        email: email || 'unknown',
+        ip_address: ip,
+        user_agent: ua,
+        device_id: device_id,
+        source_app: 'Acme Corp Employee Portal',
+        destination: `${getSelfUrl(req)}/login`
+    });
+
+    console.log(`[SENTINEL DECISION] ${decision.action.toUpperCase()} (Risk: ${decision.risk_score}) for ${email}`);
+
+    if (decision.action === 'block') {
+        return res.status(403).json({ 
+            error: 'Access Denied', 
+            message: 'Your login attempt was blocked by Sentinel ITDR due to critical risk.' 
+        });
+    }
+
+    if (decision.action === 'challenge_mfa') {
+        return res.status(401).json({ 
+            error: 'MFA Required', 
+            message: 'Unusual login activity detected. Please complete MFA to continue.' 
+        });
+    }
+
+    // ── 2. Local Password Check ──
     const employee = EMPLOYEES[email?.toLowerCase()];
 
     if (!employee || !bcrypt.compareSync(password, employee.password)) {

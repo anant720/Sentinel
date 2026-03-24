@@ -56,12 +56,23 @@ export class DashboardService {
             activeRules = parseInt(rulesResult.rows[0].count, 10) || 0;
         } catch { /* table may not exist yet — safe fallback */ }
 
+        // Active Interventions: inline blocks in last 24h
+        let activeInterventions = 0;
+        try {
+            const interventionsResult = await db.query(
+                `SELECT COUNT(*) as count FROM events WHERE organization_id = $1 AND event_type = 'PRE_AUTH_BLOCKED' AND created_at > NOW() - INTERVAL '24 hours'`,
+                [orgId]
+            );
+            activeInterventions = parseInt(interventionsResult.rows[0].count, 10) || 0;
+        } catch { /* non-blocking */ }
+
         return {
             totalIdentities,
             criticalThreats,
             detectionVelocity,
             geographicNodes,
-            activeRules
+            activeRules,
+            activeInterventions
         };
     }
 

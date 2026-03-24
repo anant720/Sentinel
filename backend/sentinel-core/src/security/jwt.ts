@@ -23,6 +23,8 @@ export interface AccessTokenPayload {
     role: Role;  // Typed as the Role enum — not a raw string
     jti: string; // Unique identifier for the token
     exp?: number; // Expiry timestamp (added by @fastify/jwt)
+    device_id?: string; // Embedded device fingerprint for session binding
+    session_id?: string; // High-entropy Concurrent Session tracker
 }
 
 // ── @fastify/jwt plugin configuration ──────────────────────────────────────
@@ -83,13 +85,23 @@ export function validateTokenPayload(payload: unknown): AccessTokenPayload {
     if (typeof p?.jti !== 'string') throw new Error('Malformed JWT payload: jti missing or invalid');
     if (!isValidRole(p?.role)) throw new Error('Malformed JWT payload: role missing or invalid');
 
-    return {
+    const result: AccessTokenPayload = {
         user_id: p.user_id,
         organization_id: p.organization_id,
         role: p.role as Role,
         jti: p.jti,
         exp: p.exp as number,
     };
+    
+    if (p.device_id) {
+        result.device_id = p.device_id as string;
+    }
+    
+    if (p.session_id) {
+        result.session_id = p.session_id as string;
+    }
+    
+    return result;
 }
 
 /** Expiry constants — single place to modify token lifetimes. */

@@ -12,11 +12,13 @@ import { JWTPayload } from '../middleware/auth.middleware.js';
 import { generateSecureToken, TOKEN_EXPIRY, AccessTokenPayload } from '../security/index.js';
 import { config } from '../config/index.js';
 import { z } from 'zod';
+import * as crypto from 'crypto';
 
 const loginSchema = z.object({
     email: z.string().email(),
     password: z.string().min(8),
     is_client_hashed: z.boolean().optional().default(false),
+    device_id: z.string().optional(),
 });
 
 const refreshSchema = z.object({
@@ -30,7 +32,7 @@ export class AuthController {
             return reply.code(400).send({ error: 'Bad Request', details: validation.error.format() });
         }
 
-        const { email, password } = validation.data;
+        const { email, password, device_id } = validation.data;
         const user = await AuthService.findUserByEmail(email);
 
         if (!user) {
@@ -115,12 +117,28 @@ export class AuthController {
 
         await AuthService.resetFailedLogin(user.id);
 
+        const clientFingerprint = device_id ?? null;
+        const sessionId = crypto.randomUUID();
+
+        try {
+            const { redisClient } = await import('../lib/redis.js');
+            await redisClient.set(`session:${user.id}`, sessionId, 'EX', TOKEN_EXPIRY.REFRESH_DAYS * 86400);
+        } catch (e) {
+            request.log.warn('Failed to register session_id in Redis');
+        }
+        
         const payload: AccessTokenPayload = {
             user_id: user.id,
             organization_id: user.organization_id,
             role: user.role,
             jti: generateSecureToken(32), // Added unique JTI for revocation
+            session_id: sessionId
         };
+
+        // Inject the browser fingerprint directly into the JWT for continuous session binding
+        if (clientFingerprint) {
+            (payload as any).device_id = clientFingerprint;
+        }
         const accessToken = await reply.jwtSign(payload, {
             header: { kid: config.JWT_ACTIVE_KID, alg: 'HS256' },
             key: config.JWT_SECRETS_MAP[config.JWT_ACTIVE_KID]!
@@ -167,6 +185,9 @@ export class AuthController {
                 address: null // Front-end logins don't send GPS currently
             };
 
+            // Re-use upstream fingerprint
+            const deviceId = clientFingerprint;
+
             const successPayload = JSON.stringify({
                 email: user.email,
                 user_id: user.id,
@@ -174,18 +195,26 @@ export class AuthController {
                 ip_address: clientIp,
                 user_agent: request.headers['user-agent'] ?? null,
                 risk_score: 0,
+                device_id: deviceId,
+                geo_country: geo.country,
             });
 
-            await db.query(
+            const result = await db.query(
                 `INSERT INTO events (
                     organization_id, event_type, payload, signature, integrity_hash, processed,
                     ip_address, geo_country, geo_country_code, geo_city, geo_lat, geo_lon, geo_isp, geo_address
-                 ) VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                 ) VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, $13)
+                 RETURNING id`,
                 [
                     user.organization_id, 'login_success', successPayload, 'auth-controller', 'auth-controller',
                     clientIp, geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp, geo.address
                 ]
             );
+            
+            const stored = result.rows[0];
+            const { enqueueEvent } = await import('../queues/event.queue.js');
+            await enqueueEvent(stored.id, user.organization_id);
+            
             // Broadcast to WebSocket org channel
             if ((global as any).broadcastSecurityEvent) {
                 (global as any).broadcastSecurityEvent({
@@ -197,6 +226,7 @@ export class AuthController {
                         email: user.email, 
                         ip_address: clientIp, 
                         role: user.role,
+                        device_id: deviceId,
                         location: { city: geo.city, country: geo.country }
                     },
                 });
@@ -252,12 +282,31 @@ export class AuthController {
             return reply.code(401).send({ error: 'Unauthorized', message: 'User not found' });
         }
 
+        const clientFingerprint = request.headers['x-device-fingerprint'];
+        
+        let currentSessionId = crypto.randomUUID() as string;
+        try {
+            const { redisClient } = await import('../lib/redis.js');
+            const storedSession = await redisClient.get(`session:${user.id}`);
+            if (storedSession) {
+                currentSessionId = storedSession;
+                await redisClient.expire(`session:${user.id}`, TOKEN_EXPIRY.REFRESH_DAYS * 86400);
+            } else {
+                await redisClient.set(`session:${user.id}`, currentSessionId, 'EX', TOKEN_EXPIRY.REFRESH_DAYS * 86400);
+            }
+        } catch (e) {}
+
         const newPayload: AccessTokenPayload = {
             user_id: user.id,
             organization_id: user.organization_id,
             role: user.role,
             jti: generateSecureToken(32), // Added unique JTI for rotated token
+            session_id: currentSessionId
         };
+
+        if (clientFingerprint) {
+            (newPayload as any).device_id = clientFingerprint;
+        }
         const newAccessToken = await reply.jwtSign(newPayload, {
             header: { kid: config.JWT_ACTIVE_KID, alg: 'HS256' },
             key: config.JWT_SECRETS_MAP[config.JWT_ACTIVE_KID]!

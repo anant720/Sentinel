@@ -7,6 +7,7 @@ import { fingerprintCampaign } from './rules/fingerprint-campaign.rule.js';
 import { riskScoring } from './rules/risk-scoring.rule.js';
 import { securityToolDetection } from './rules/security-tool-detection.rule.js';
 import { impossibleTravelRule } from './rules/impossible-travel.rule.js';
+import { newDeviceLogonRule } from './rules/new-device-logon.rule.js';
 
 export const rules: DetectionRule[] = [
     rapidFailedLogins,
@@ -16,5 +17,6 @@ export const rules: DetectionRule[] = [
     fingerprintCampaign,
     riskScoring,
     securityToolDetection,
-    impossibleTravelRule
+    impossibleTravelRule,
+    newDeviceLogonRule,
 ];

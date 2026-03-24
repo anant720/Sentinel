@@ -269,6 +269,9 @@ export async function setupServer(fastify: FastifyInstance) {
             // Extracts Bearing sk_sentinel_, cryptographically verifies Hash, sets req.orgId natively
             machine.addHook('preHandler', apiKeyMiddleware);
 
+            const { EvaluateController } = await import('./controllers/evaluate.controller.js');
+            machine.post('/evaluate', EvaluateController.evaluate);
+
             machine.post('/events/ingest', IngestionController.ingest);
             machine.post('/devices/heartbeat', DeviceController.heartbeat);
 

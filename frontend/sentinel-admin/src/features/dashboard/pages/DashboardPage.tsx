@@ -86,8 +86,9 @@ export default function DashboardPage() {
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : '—';
 
   const cards = [
+    { label: 'Active Interventions', value: stats?.activeInterventions ?? 0, subValue: 'Inline blocks (24h)', icon: Shield, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
     { label: 'Total Identities', value: stats?.totalIdentities ?? 0, subValue: 'Active accounts', icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: 'Critical Threats', value: stats?.criticalThreats ?? 0, subValue: 'Open critical alerts', icon: Shield, color: 'text-red-400', bg: 'bg-red-500/10' },
+    { label: 'Critical Threats', value: stats?.criticalThreats ?? 0, subValue: 'Open critical alerts', icon: Activity, color: 'text-red-400', bg: 'bg-red-500/10' },
     { label: 'Detection Velocity', value: stats?.detectionVelocity || '0/hr', subValue: 'Events last hour', icon: Zap, color: 'text-orange-400', bg: 'bg-orange-500/10' },
     { label: 'Source IPs (24h)', value: stats?.geographicNodes ?? 0, subValue: 'Unique nodes detected', icon: Globe, color: 'text-purple-400', bg: 'bg-purple-500/10' },
   ];
@@ -114,7 +115,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
@@ -309,18 +310,24 @@ function DecryptedEventItem({ event }: { event: any }) {
     decrypt();
   }, [event.payload, masterKey]);
 
+  const isBlocked = (event.event_type || event.type) === 'PRE_AUTH_BLOCKED';
+
   return (
-    <div className="flex gap-3 items-start p-3 bg-white/[0.02] border border-white/5 rounded-lg">
-      <div className={`p-1.5 rounded bg-white/5 ${(event.risk_score || 0) > 70 ? 'text-red-500' : 'text-primary'}`}>
+    <div className={`flex gap-3 items-start p-3 border rounded-lg ${isBlocked ? 'bg-red-500/10 border-red-500/30' : 'bg-white/[0.02] border-white/5'}`}>
+      <div className={`p-1.5 rounded ${isBlocked ? 'bg-red-500/20' : 'bg-white/5'} ${isBlocked || (event.risk_score || 0) > 70 ? 'text-red-500' : 'text-primary'}`}>
         <Shield size={12} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-start">
-          <span className="text-[10px] font-bold text-gray-300 truncate uppercase">{event.event_type || event.type}</span>
-          <span className="text-[9px] text-gray-600 tabular-nums">{new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+          <span className={`text-[10px] font-bold truncate uppercase ${isBlocked ? 'text-red-400' : 'text-gray-300'}`}>
+            {event.event_type || event.type}
+          </span>
+          <span className="text-[9px] text-gray-600 tabular-nums">
+            {new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </span>
         </div>
-        <div className="text-[10px] text-gray-500 truncate mt-0.5">
-          {isDecrypting ? 'Decrypting...' : (decryptedPayload?.email || decryptedPayload?.user_email || 'System')}
+        <div className={`text-[10px] truncate mt-0.5 ${isBlocked ? 'text-red-300/80 font-medium' : 'text-gray-500'}`}>
+          {isDecrypting ? 'Decrypting...' : (decryptedPayload?.email || decryptedPayload?.user_email || 'System')} {isBlocked && '— Blocked Inline'}
         </div>
       </div>
     </div>

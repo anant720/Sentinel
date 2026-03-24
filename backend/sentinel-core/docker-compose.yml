@@ -20,7 +20,7 @@ services:
     environment:
       - ROLE=api
     env_file:
-      - .env.production
+      - .env
     depends_on:
       - db
       - redis
@@ -35,7 +35,7 @@ services:
     environment:
       - ROLE=worker
     env_file:
-      - .env.production
+      - .env
     deploy:
       replicas: 4 # Scales 4 independent thread loops tracking the Detection Engine automatically
     depends_on:

@@ -79,7 +79,7 @@ In v26.3.2, Sentinel is engineered for **High Availability** even if infrastruct
 - **Security Alert Engine** — Automatically raises Critical/High/Warning alerts when risk thresholds are crossed
 - **Risk Score Timeline** — Time-series chart of the organization's aggregate risk score
 
-### 🛡️ Threat Detection (8 Pluggable Rules)
+### 🛡️ Threat Detection (9 Pluggable Rules)
 | Rule | What It Catches |
 |------|----------------|
 | `impossible_travel` | Physical login velocity exceeding commercial jet speeds (800km/h) across geographic zones. |
@@ -89,12 +89,14 @@ In v26.3.2, Sentinel is engineered for **High Availability** even if infrastruct
 | `distributed_login` | Login failures from many distinct IPs targeting the same account |
 | `password_spraying` | Low-and-slow logins across many accounts from one IP |
 | `fingerprint_campaign` | Systematic path/header probing indicating reconnaissance |
+| `new_device_logon` | Pristine identity authenticating from an un-fingerprinted or anomalous device |
 | `risk_scoring` | Aggregate behavioral risk index across all signal types |
 
-#### The 3 Core Detection Approaches
+#### The 4 Core Detection Approaches
 1. **Signature-Based (The "Bouncer"):** Checks against known lists. If a request uses a known hacking tool's User-Agent or requests sensitive file paths, it’s instantly blocked.
 2. **Threshold-Based (The "Speed Camera"):** Allows normal traffic but blocks IPs that act too fast, such as triggering a 60-request burst within 1 minute or failing 5 logins rapidly.
 3. **Behavioral-Based (The "Detective"):** Looks for suspicious patterns over time, such as Credential Stuffing (many IPs attacking one account) or Password Spraying (one IP attacking many accounts slowly).
+4. **Active ITDR Enforcer (The "Gatekeeper"):** Evaluates real-time intrinsic risk at the authentication perimeter. If an identity or IP crosses Critical Risk (80+), it strictly enforces a 403 Access Denied. If Elevated (40+), it mandates an MFA Challenge.
 
 ### 🏢 Multi-Tenant Architecture
 - Every API request is logically scoped to an `organization_id`
