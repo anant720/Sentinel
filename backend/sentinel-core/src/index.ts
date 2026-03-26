@@ -386,7 +386,7 @@ export async function setupServer(fastify: FastifyInstance) {
                                 WHEN last_seen_at > NOW() - INTERVAL '15 minutes' THEN 'away'
                                 ELSE 'offline'
                             END as presence
-                         FROM users WHERE organization_id = $1 ORDER BY created_at DESC`,
+                         FROM users WHERE organization_id = $1 AND is_active = true ORDER BY created_at DESC`,
                         [request.orgId]
                     );
                     return { data: result.rows };

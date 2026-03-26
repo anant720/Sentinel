@@ -121,7 +121,7 @@ export class AlertService {
     static async getAlerts(orgId: string, limit = 50) {
         const result = await db.query(
             `SELECT id, event_id, type, rule_id, severity, status, title, description, entity, evidence,
-                    created_at, resolved_at, acknowledged_at, dismissed_at, suppression_count
+                    resolution_note, created_at, resolved_at, acknowledged_at, dismissed_at, suppression_count
              FROM alerts 
              WHERE organization_id = $1 
              ORDER BY created_at DESC 

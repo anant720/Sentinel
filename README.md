@@ -1,5 +1,5 @@
 # 🛡️ Sentinel Security Platform
-**Version 26.3.2 — A Project by Anant Suthar**
+**Version 26.3.3 — A Project by Anant Suthar**
 
 ---
 
@@ -13,8 +13,8 @@
 
 - **🛡️ Production Hardening**: Strict "Fail-Fast" validation for environment secrets, with an auto-migrator natively integrated for robust Render deployments.
 - **🔐 Total Zero-Knowledge E2EE**: Sensitive event payloads and organization detection structures are locally encrypted using **AES-GCM** with **PBKDF2** derived keys. The backend only stores ciphertext.
-- **📍 High-Fidelity Geo-Intelligence**: Advanced multi-layer location resolution (GPS + Cloudflare Headers + Nominatim API) providing exact street-level accuracy and prioritizing real locations (e.g. Pune) over fallback ISP hubs.
-- **🧠 Impossible Travel Detection**: A new high-frequency behavioral module tracking concurrent logins across physically impossible distances utilizing the Haversine formula.
+- **📍 High-Fidelity Geo-Intelligence**: Advanced multi-layer location resolution (GPS + Cloudflare Headers + Nominatim API) providing exact street-level accuracy and prioritizing real locations over fallback ISP hubs.
+- **🧠 Impossible Travel Detection**: A high-frequency behavioral module tracking concurrent logins across physically impossible distances utilizing the Haversine formula.
 - **💓 High Availability & Uptime**: Designed with a Fail-Closed Redis integration, database-degradation hooks into a 503 strategy, and a **10-minute automated Uptime Monitor** that guarantees the Render backend stays warm and eliminates cold starts.
 
 ---
@@ -27,7 +27,7 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 - 🏢 **Single-Admin Lockdown** — unique security policy to prevent credential sprawl
 - 🧠 **Intrinsic Risk Scoring** — automated behavioral analysis of every incoming event
 - ⚡ **BullMQ async processing** — high-throughput event ingestion without blocking the HTTP layer
-- 🎯 **Configurable heuristic engine** — 100+ pluggable detection rules, togglable and tunable per organization
+- 🎯 **Configurable heuristic engine** — 9 pluggable detection rules, togglable and tunable per organization
 - 📧 **Automated Email Invitations** — professional onboarding flow via Brevo Transactional API
 - ☁️ **Fully Cloud Operational** — Live on Render (Backend), Vercel (Frontend), Supabase (DB), and Upstash (Redis).
 
@@ -39,11 +39,12 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         SENTINEL PLATFORM v26.3.2                       │
+│                         SENTINEL PLATFORM v26.3.3                       │
 │                                                                         │
 │  ┌─────────────────┐      HTTPS / E2EE      ┌────────────────────┐      │
 │  │  Vercel         │ ◀─── (JWT / API Key) ──▶│  Render / Docker   │      │
-│  │  (Frontend SOC) │                        │  (Sentinel Core)   │      │
+│  │  (sentinel-v2)  │                        │  (Sentinel Core)   │      │
+│  │  Vite + React   │                        │  Fastify + TS      │      │
 │  └───────▲─────────┘                        └─────────┬──────────┘      │
 │          │                                             │                │
 │          │            (Optional Real-time)             │ (Critical Path)│
@@ -57,18 +58,18 @@ Built as a personal full-stack engineering project, Sentinel demonstrates:
 ```
 
 ### 🛡️ Resilience Architecture (Self-Healing Core)
-In v26.3.2, Sentinel is engineered for **High Availability** even if infrastructure components fail.
-- **Fail-Soft Redis**: If Upstash/Redis becomes unreachable, the platform automatically enters **Degraded Mode**. 
-- **Persistence Priority**: Security events are always persisted to Supabase first. Redis is only used for the "Live WebSocket Stream". 
+In v26.3.3, Sentinel is engineered for **High Availability** even if infrastructure components fail.
+- **Fail-Soft Redis**: If Upstash/Redis becomes unreachable, the platform automatically enters **Degraded Mode**.
+- **Persistence Priority**: Security events are always persisted to Supabase first. Redis is only used for the "Live WebSocket Stream".
 - **Zero-Block Ingestion**: API requests never wait for the broadcast layer, ensuring security ingestion is never delayed by live-monitoring latency.
 
 ### Technical Data Flow
 1. **Ingest** — An attacker hits your corporate portal. The Sentinel SDK/Middleware fires a POST to `/events/log`.
 2. **Queue** — Fastify accepts the payload and pushes it to a BullMQ worker queue.
-3. **Analyse** — A background worker runs the event through all 7 active detection rules, computing a `risk_score`.
+3. **Analyse** — A background worker runs the event through all 9 active detection rules, computing a `risk_score`.
 4. **Persist** — The scored event is written to Supabase (PostgreSQL).
 5. **Broadcast** — Upstash (Redis) publishes the new event and audit logs to open Pub/Sub channels.
-6. **Visualise** — The Vercel-hosted Admin Console receives a WebSocket push instantly.
+6. **Visualise** — The Vercel-hosted SOC Console receives a WebSocket push instantly.
 
 ---
 
@@ -93,7 +94,7 @@ In v26.3.2, Sentinel is engineered for **High Availability** even if infrastruct
 | `risk_scoring` | Aggregate behavioral risk index across all signal types |
 
 #### The 4 Core Detection Approaches
-1. **Signature-Based (The "Bouncer"):** Checks against known lists. If a request uses a known hacking tool's User-Agent or requests sensitive file paths, it’s instantly blocked.
+1. **Signature-Based (The "Bouncer"):** Checks against known lists. If a request uses a known hacking tool's User-Agent or requests sensitive file paths, it's instantly flagged.
 2. **Threshold-Based (The "Speed Camera"):** Allows normal traffic but blocks IPs that act too fast, such as triggering a 60-request burst within 1 minute or failing 5 logins rapidly.
 3. **Behavioral-Based (The "Detective"):** Looks for suspicious patterns over time, such as Credential Stuffing (many IPs attacking one account) or Password Spraying (one IP attacking many accounts slowly).
 4. **Active ITDR Enforcer (The "Gatekeeper"):** Evaluates real-time intrinsic risk at the authentication perimeter. If an identity or IP crosses Critical Risk (80+), it strictly enforces a 403 Access Denied. If Elevated (40+), it mandates an MFA Challenge.
@@ -101,16 +102,16 @@ In v26.3.2, Sentinel is engineered for **High Availability** even if infrastruct
 ### 🏢 Multi-Tenant Architecture
 - Every API request is logically scoped to an `organization_id`
 - Multiple organizations share one instance with zero data spillage
-- Per-org API Key management with configurable rate limits
+- Per-org API Key management with configurable rate limits (100–10,000 req/min)
 
 ### 🔐 Identity & Access Management
 | Role | Capabilities |
 |------|-------------|
-| `org_admin` | Full control — user management, API keys, detection settings |
+| `org_admin` | Full control — user management, API keys, detection settings, org deletion |
 | `security_analyst` | Manage alerts, read events, view detection config |
 | `viewer` | Read-only access to events and resolved alerts |
 
-### 📊 SOC Dashboard
+### 📊 SOC Dashboard (sentinel-v2)
 - Detection velocity charts
 - Top threats summary cards
 - Alert status breakdown (Active / Acknowledged / Resolved / Dismissed)
@@ -120,17 +121,39 @@ In v26.3.2, Sentinel is engineered for **High Availability** even if infrastruct
 ### ⚙️ Configuration & Audit
 - Toggle individual detection rules on/off per organization
 - Configurable data retention policies
-- **Live Management Stream** — Separate WebSocket channel for administrative actions (Invites, User management)
-- Full organization-wide audit trail with real-time broadcasting
+- **Live Management Stream** — Separate WebSocket channel for administrative actions
+- Full organization-wide audit trail with CSV export
 
 ### 📧 Transactional Mailer (Brevo)
 - **Invite System** — Professional onboarding with custom HTML templates.
-- **REST API Integration** — Uses Brevo's V3 HTTP/REST API for high reliability and to bypass SMTP port restrictions in cloud environments (like Render).
+- **REST API Integration** — Uses Brevo's V3 HTTP/REST API for high reliability.
 - **Asynchronous Delivery** — Emails are triggered in the background to ensure no latency for the admin UI.
 
 ---
 
-## 4️⃣ Screenshots
+## 4️⃣ What's New in v26.3.3
+
+### 🖥️ New Frontend: sentinel-v2 (Vite + React + TypeScript)
+The legacy `sentinel-admin` frontend has been fully replaced by **sentinel-v2**, a modern, fully redesigned SOC dashboard.
+
+| Area | Change |
+|------|--------|
+| **Framework** | Migrated from CRA to **Vite + React 18 + TypeScript** |
+| **Design** | Glassmorphism dark theme, Material Icons, custom CSS design system |
+| **Auth flow** | Invite acceptance now auto-logins the new user using the returned JWT (no session bleed from admin cookies) |
+| **API Key Management** | Moved to Organizations page — rate limit selector (100–10,000 req/min), Active/Revoked status indicators |
+| **Settings Page** | Cleaned up: Profile, E2EE toggle, Export Audit CSV, Delete Org (admin-only) |
+| **Live Events** | Fixed event_type display (backend alias `type` now normalized); server-side type filter; free-text search by identity/IP |
+| **Detection Logic** | All 9 detection modules displayed (was showing only 6) |
+| **Identity Page** | Soft-deleted users (`is_active = false`) now filtered from the list |
+| **Alerts** | Resolution notes displayed after resolve; Dismiss button hidden for already-resolved alerts |
+| **RBAC** | Danger Zone (Delete Org) restricted to `org_admin` only in UI |
+| **Single Admin Policy** | `org_admin` role removed from invite and change-role dropdowns |
+| **Invite Link** | Fixed invite email URL from localhost:5173 to localhost:5174 (sentinel-v2 port) |
+
+---
+
+## 5️⃣ Screenshots
 
 ### Dashboard & Analytics
 ![Dashboard](docs/screenshots/Dashboard.png)
@@ -150,7 +173,7 @@ In v26.3.2, Sentinel is engineered for **High Availability** even if infrastruct
 ### Organization & API Keys
 ![Organization](docs/screenshots/Organization.png)
 
-### Settings & Audit Logging
+### Settings & Compliance
 ![Settings](docs/screenshots/Setting.png)
 
 ### Secure Login
@@ -158,7 +181,7 @@ In v26.3.2, Sentinel is engineered for **High Availability** even if infrastruct
 
 ---
 
-## 5️⃣ API Usage Example
+## 6️⃣ API Usage Example
 
 Sentinel exposes a REST API secured by dual-layer authentication.
 
@@ -180,7 +203,7 @@ curl -X POST https://your-sentinel-api.com/events/log \
 
 ---
 
-## 6️⃣ SDK Integration Pattern
+## 7️⃣ SDK Integration Pattern
 
 Sentinel is designed to integrate invisibly into any existing application via a lightweight middleware SDK.
 
@@ -217,14 +240,14 @@ function sentinelMiddleware(options) {
 
 ---
 
-## 7️⃣ Technical Stack
+## 8️⃣ Technical Stack
 
 | Layer | Technology |
 |-------|-----------|
 | **Backend** | Node.js, Fastify, TypeScript |
 | **Database** | Supabase (PostgreSQL) |
 | **Cache / Broker** | Upstash (Redis / BullMQ) |
-| **Frontend** | React 18, Vite, TailwindCSS |
+| **Frontend** | React 18, Vite, TypeScript, Vanilla CSS |
 | **Real-Time** | WebSockets (Native) |
 | **Mailing** | Brevo Transactional API |
 | **Deployment** | Render (API), Vercel (Web), Supabase (DB) |

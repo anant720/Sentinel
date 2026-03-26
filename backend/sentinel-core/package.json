@@ -1,6 +1,6 @@
 {
   "name": "sentinel-core",
-  "version": "26.3.2",
+  "version": "26.3.3",
   "type": "module",
   "description": "KantCore Phase 0 foundational kernel",
   "main": "src/index.ts",

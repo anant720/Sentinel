@@ -36,7 +36,7 @@ function getInviteTemplate(inviteLink: string, orgName: string, role: string, me
 
 export class MailerService {
     static async sendInvite(toEmail: string, rawToken: string, orgName: string, role: string, message?: string) {
-        const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
         const inviteLink = `${baseUrl}/invite/${rawToken}`;
 
         const apiKey = process.env.BREVO_API_KEY;
