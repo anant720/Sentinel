@@ -1,9 +1,0 @@
-# sentinel-admin .dockerignore
-node_modules
-.next
-.env
-.env.*
-*.log
-.git
-.gitignore
-README.md
