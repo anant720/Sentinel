@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const SENTINEL_URL = 'http://localhost:3001';
+const SENTINEL_URL = process.env.SENTINEL_URL || '';
 const API_KEY = 'sk_sentinel_hackathon_demo_key_2026';
 
 async function logEvent(type, payload) {

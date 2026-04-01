@@ -18,6 +18,8 @@ import { DeviceService } from '../services/device.service.js';
 import { z } from 'zod';
 import { redisClient } from '../lib/redis.js';
 import { MetricsService } from '../services/metrics.service.js';
+import { config } from '../config/index.js';
+
 
 /** 
  * Phase 4: Canonical Event Envelope 
@@ -131,9 +133,9 @@ export class IngestionController {
             // Enhanced IP Resolution: Prefer request.ip but fallback to payload if request.ip is loopback/missing/local
             let clientIp = request.ip;
             const isLoopback = !clientIp || 
-                               clientIp === '127.0.0.1' || 
+                               (config.isDev && (clientIp === '127.0.0.1' || clientIp.includes('127.0.0.1'))) || 
                                clientIp === '::1' || 
-                               clientIp.includes('127.0.0.1') || 
+                               clientIp === '0.0.0.0' ||
                                clientIp.startsWith('10.'); // Render internal network
 
             if (isLoopback) {

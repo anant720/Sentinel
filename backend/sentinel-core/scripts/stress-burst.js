@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 
-const API = 'http://localhost:3001/auth/login'; // Phase 0 changed port to 3001
+const API = `${process.env.SENTINEL_URL || ''}/auth/login`;
 const EMAIL = 'attacker@test.com';
 const PASSWORD = "definitely_wrong_password_123";
 

@@ -1,5 +1,4 @@
-// Uses Brevo Transactional Email REST API (HTTPS/443) instead of SMTP
-// Render free tier blocks outbound SMTP (port 587), so HTTP API is required.
+import { config } from '../config/index.js';
 
 function getInviteTemplate(inviteLink: string, orgName: string, role: string, message?: string) {
     const messageHtml = message ? `
@@ -36,7 +35,7 @@ function getInviteTemplate(inviteLink: string, orgName: string, role: string, me
 
 export class MailerService {
     static async sendInvite(toEmail: string, rawToken: string, orgName: string, role: string, message?: string) {
-        const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+        const baseUrl = config.FRONTEND_URL || '';
         const inviteLink = `${baseUrl}/invite/${rawToken}`;
 
         const apiKey = process.env.BREVO_API_KEY;

@@ -149,7 +149,7 @@ The legacy `sentinel-admin` frontend has been fully replaced by **sentinel-v2**,
 | **Alerts** | Resolution notes displayed after resolve; Dismiss button hidden for already-resolved alerts |
 | **RBAC** | Danger Zone (Delete Org) restricted to `org_admin` only in UI |
 | **Single Admin Policy** | `org_admin` role removed from invite and change-role dropdowns |
-| **Invite Link** | Fixed invite email URL from localhost:5173 to localhost:5174 (sentinel-v2 port) |
+| **Invite Link** | Fixed invite email URL from [REDACTED] to [REDACTED] |
 
 ---
 

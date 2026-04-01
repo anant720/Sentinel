@@ -385,7 +385,7 @@ The `demo/acme-portal` is an **intentionally vulnerable mock corporate employee 
 | `start.bat` | 1.0 KB | Windows quick-launch batch file |
 
 ### 6.2 How It Works
-1. Employees (or attackers) visit `http://localhost:4000`
+1. Employees (or attackers) visit `http://<sentinel-portal>`
 2. The built-in Express middleware intercepts every HTTP request
 3. It extracts: **IP address**, **User-Agent string**, **Request path**, **Authentication outcome**
 4. It fires an async POST to `POST /events/log` on Sentinel Core with an `Authorization: Bearer sk_sentinel_*` header

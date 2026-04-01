@@ -29,7 +29,7 @@ const PRIVATE_RANGES = [
     /^127\./,
     /^::1$/,
     /^0\.0\.0\.0$/,
-    /^localhost$/,
+    /^internal$/,
 ];
 
 function isPrivateIP(ip: string): boolean {

@@ -20,6 +20,8 @@ import { logger } from '../lib/logger.js';
 import { enqueueEvent } from '../queues/event.queue.js';
 import { computeIntegrityHash } from '../security/index.js';
 import { validateCanonicalEvent } from '../types/events.js';
+import { config } from '../config/index.js';
+
 
 // ── Event Schema ─────────────────────────────────────────────────────────────
 
@@ -81,7 +83,7 @@ export class IngestionService {
         const { GeoIPService } = await import('./geoip.service.js');
         
         // Final IP Safety Net: if clientIp slipped through as null/loopback, extract from payload
-        const LOOPBACK = ['127.0.0.1', '::1', '::ffff:127.0.0.1', '0.0.0.0', '', undefined, null];
+        const LOOPBACK = config.isDev ? ['127.0.0.1', '::1', '::ffff:127.0.0.1', '0.0.0.0'] : [];
         const resolvedIp = LOOPBACK.includes(clientIp as any)
             ? (payload.ip_address || payload.ip || payload.source_ip || clientIp || '')
             : clientIp || payload.ip_address || '';

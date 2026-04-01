@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATABASE_URL = 'postgresql://postgres:postgres@localhost:5433/sentinel_core';
+const DATABASE_URL = process.env.DATABASE_URL || '';
 
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
 

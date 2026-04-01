@@ -20,11 +20,9 @@ timeout /t 2 /nobreak > nul
 
 REM Step 3: Open browser
 echo  [3/3] Opening browser...
-start http://localhost:4000
-
 echo.
-echo  ✅ Done! The portal is running at http://localhost:4000
-echo  🛡️  Sentinel is at http://localhost:3001
+echo  ✅ Done! The services are starting up...
+echo  🛡️  Sentinel integration active.
 echo.
 echo  NOTE: If events aren't reaching Sentinel, make sure you've:
 echo    1. Created an API key in Sentinel Admin → Organizations

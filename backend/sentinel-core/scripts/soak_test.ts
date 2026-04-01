@@ -64,7 +64,7 @@ async function runSoakBaseline() {
     });
 
     const instance = autocannon({
-        url: 'http://localhost:80/events/ingest', // Target NGINX Round Robin LB
+        url: `${process.env.SENTINEL_GATEWAY_URL || 'https://api.sentinel.internal'}/events/ingest`, // Target NGINX Round Robin LB
         connections: 50,
         pipelining: 1,
         duration: 15, // Evaluated mapped functionally representing the 2-hour structural intent

@@ -48,9 +48,9 @@ export async function setupServer(fastify: FastifyInstance) {
                     scriptSrc: ["'self'"],
                     styleSrc: ["'self'", "'unsafe-inline'"],
                     imgSrc: ["'self'", "data:"],
-                    connectSrc: config.isDev
-                        ? ["'self'", 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:5173']
-                        : ["'self'", 'https://sentinel-admin-roan.vercel.app', 'https://sentinel-admin-demo.vercel.app', 'https://sentinel-admin-git-2631-anant-suthars-projects.vercel.app', 'https://sentinel-admin-f0gq8332k-anant-suthars-projects.vercel.app'],
+                    connectSrc: config.isProd 
+                        ? ["'self'", 'https://*.vercel.app']
+                        : ["'self'"],
                     fontSrc: ["'self'"],
                     objectSrc: ["'none'"],
                     mediaSrc: ["'none'"],
@@ -83,7 +83,7 @@ export async function setupServer(fastify: FastifyInstance) {
         });
 
         // CORS: dynamic based on FRONTEND_URL, ALLOWED_ORIGINS, and Vercel subdomains
-        const devOrigins = config.isProd ? [] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://localhost:8080'];
+        const devOrigins = config.isDev ? (process.env.DEV_ORIGINS?.split(',') || []) : [];
         const frontendUrl = config.FRONTEND_URL;
         const configOrigins = config.ALLOWED_ORIGINS === '*' ? [] : config.ALLOWED_ORIGINS.split(',');
         const allowAll = config.ALLOWED_ORIGINS === '*';
@@ -656,7 +656,7 @@ async function bootstrap() {
 
             wss.on('connection', async (socket: any, req: any) => {
                 // Authenticate via ?token= query param
-                const url = new URL(req.url!, `http://localhost`);
+                const url = new URL(req.url!, `http://internal.service`);
                 const token = url.searchParams.get('token');
                 if (!token) { socket.close(4001, 'Unauthorized'); return; }
                 try {

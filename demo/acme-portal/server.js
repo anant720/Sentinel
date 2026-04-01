@@ -118,7 +118,7 @@ async function reportToSentinel(eventType, payload) {
     payload.stream_source = 'API';
     if (!payload.location) {
         // Consistent mock location based on IP address length/char to make it look stable per IP
-        const ipString = payload.ip_address || '127.0.0.1';
+        const ipString = payload.ip_address || '';
         const locIndex = ipString.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % MOCK_LOCATIONS.length;
         payload.location = MOCK_LOCATIONS[locIndex];
     }
@@ -148,12 +148,12 @@ async function evaluateWithSentinel(eventType, payload) {
     }
 
     payload.stream_source = 'API';
-    const ipString = payload.ip_address || '127.0.0.1';
+    const ipString = payload.ip_address || '';
     const locIndex = ipString.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % MOCK_LOCATIONS.length;
     payload.location = MOCK_LOCATIONS[locIndex];
 
     try {
-        const sentinelUrl = SENTINEL_URL.replace('localhost', '127.0.0.1');
+        const sentinelUrl = SENTINEL_URL;
         const res = await fetch(`${sentinelUrl}/evaluate`, {
             method: 'POST',
             headers: {
@@ -649,7 +649,7 @@ app.get('*', (req, res) => {
 
 // ── Start ──
 app.listen(PORT, () => {
-    console.log(`\n🏢 Acme Corp Portal running at http://localhost:${PORT}`);
+    console.log(`\n🏢 Acme Corp Portal running at ${getSelfUrl({ protocol: 'http', get: (h) => h })}`);
     console.log(`🛡️  Sentinel at ${SENTINEL_URL}`);
     console.log(`🔍 Intrusion Detection Engine: ACTIVE`);
     console.log(`   Monitoring for: dirb, nikto, sqlmap, gobuster, hydra, nmap...`);
