@@ -83,12 +83,14 @@ export async function setupServer(fastify: FastifyInstance) {
         });
 
         // CORS: dynamic based on FRONTEND_URL, ALLOWED_ORIGINS, and Vercel subdomains
-        const devOrigins = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:5173', 'http://localhost:8080'];
-        const frontendUrl = process.env.FRONTEND_URL;
+        const devOrigins = config.isProd ? [] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://localhost:8080'];
+        const frontendUrl = config.FRONTEND_URL;
         const configOrigins = config.ALLOWED_ORIGINS === '*' ? [] : config.ALLOWED_ORIGINS.split(',');
+        const allowAll = config.ALLOWED_ORIGINS === '*';
         
         const originValidator = (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => {
-            if (!origin || config.isDev) return cb(null, true);
+            // Allow all in dev OR if specifically configured to allow all
+            if (!origin || (config.isDev || allowAll)) return cb(null, true);
             
             const isAllowed = 
                 configOrigins.includes(origin) || 

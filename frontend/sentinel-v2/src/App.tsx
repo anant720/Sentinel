@@ -11,6 +11,7 @@ import OrganizationsPage from './features/organizations/pages/OrganizationsPage'
 import UsersPage from './features/users/pages/UsersPage';
 import DetectionLogicPage from './features/detection/pages/DetectionLogicPage';
 import SettingsPage from './features/settings/pages/SettingsPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
   const { isAuthenticated } = useAuthStore();
@@ -35,7 +36,7 @@ export default function App() {
           <Route path="detection-logic" element={<DetectionLogicPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   );

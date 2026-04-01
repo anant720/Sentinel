@@ -33,6 +33,7 @@ const envSchema = z.object({
     RISK_BLOCK_THRESHOLD: z.coerce.number().default(90),
     RISK_VERIFY_THRESHOLD: z.coerce.number().default(60),
     ALLOWED_ORIGINS: z.string().optional().default('*'),
+    FRONTEND_URL: z.string().url().optional(),
 });
 
 const envVars = envSchema.safeParse(process.env);
@@ -54,6 +55,7 @@ if (envVars.data.NODE_ENV === 'production') {
         ['SMTP_HOST', process.env.SMTP_HOST],
         ['SMTP_USER', process.env.SMTP_USER],
         ['SMTP_PASS', process.env.SMTP_PASS],
+        ['FRONTEND_URL', process.env.FRONTEND_URL],
     ];
 
     const failures: string[] = [];

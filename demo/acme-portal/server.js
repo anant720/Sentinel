@@ -3,6 +3,7 @@
 //  Sentinel Security Integration: server-side, hidden from users
 // ═══════════════════════════════════════════════════════
 
+require('dotenv').config();
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
@@ -14,9 +15,14 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 // ── Sentinel Config (hidden from all users — server-side only) ──
-const SENTINEL_URL = process.env.SENTINEL_URL || 'http://localhost:3001';
-const SENTINEL_API_KEY = process.env.SENTINEL_API_KEY || 'sk_sentinel_0Qc-1cFYBrGWFZLlUm9-qtjV8y9zfNRUjrUNFxJKQ-4';
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
+const SENTINEL_URL = process.env.SENTINEL_URL;
+const SENTINEL_API_KEY = process.env.SENTINEL_API_KEY;
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!SENTINEL_URL || !SENTINEL_API_KEY) {
+    console.error('❌ CRITICAL: SENTINEL_URL or SENTINEL_API_KEY is missing from environment.');
+    // In production we would exit, but for demo we log a loud warning
+}
 
 // Helper to get self URL for reporting
 const getSelfUrl = (req) => {
