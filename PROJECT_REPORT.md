@@ -392,8 +392,8 @@ The `demo/acme-portal` is an **intentionally vulnerable mock corporate employee 
 5. Sentinel receives, queues, scores, stores, and broadcasts the event
 
 ### 6.3 Attack Simulation
-- Running `nikto -h localhost:4000` triggers `scanner_detected` events (risk score 85)
-- Running `dirb http://localhost:4000` triggers `directory-brute-force` alerts (risk score >80)
+- Running `nikto -h <target-url>` triggers `scanner_detected` events (risk score 85)
+- Running `dirb http://<target-url>` triggers `directory-brute-force` alerts (risk score >80)
 - Repeated failed logins trigger `rapid-failed-logins` rule
 
 ---
