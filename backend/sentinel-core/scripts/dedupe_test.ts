@@ -69,7 +69,7 @@ async function runDedupeVerification() {
     // Fire 10 concurrent exactly identical requests simulating Cache Stampede / Alert Race Condition
     const responses = await Promise.all(
         Array.from({ length: 10 }).map(() =>
-            fetch('http://localhost:80/events/ingest', {
+            fetch(`${process.env.SENTINEL_GATEWAY_URL || ''}/events/ingest`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
