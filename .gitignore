@@ -11,11 +11,16 @@ lerna-debug.log*
 
 # Environment Variables
 .env
+.env.*
+*.env
+**/.env
+**/.env.*
+*.env.demo
+*.env.local
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-*.env
 
 # IDE / Editor
 .vscode/

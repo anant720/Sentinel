@@ -14,7 +14,13 @@ class SecurityToolDetectionModule implements DetectionModule {
         const payload = event.payload;
 
         const ua = (payload?.user_agent || payload?.userAgent || '').toLowerCase();
-        const knownScanners = ['nikto', 'sqlmap', 'nmap', 'burp', 'zap', 'dirbuster', 'gobuster'];
+        
+        // Comprehensive list of common Security Scanners, Fuzzers, and Intruder Tools
+        const knownScanners = [
+            'nikto', 'sqlmap', 'nmap', 'burp', 'zap', 'dirbuster', 'gobuster', 'dirb',
+            'ffuf', 'wfuzz', 'wpscan', 'acunetix', 'nessus', 'qualys', 'hydra', 
+            'metasploit', 'commix', 'tplmap', 'lfi-check', 'masscan'
+        ];
         
         const isScannerUA = knownScanners.some(s => ua.includes(s));
         

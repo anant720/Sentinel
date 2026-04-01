@@ -13,7 +13,7 @@ class DirectoryBruteForceModule implements DetectionModule {
         const { orgId, event } = context;
         const payload = event.payload;
 
-        const suspiciousPaths = ['/admin', '/.env', '/wp-admin', '/.git', '/config', '/api/v1/secrets', '/etc/passwd'];
+        const suspiciousPaths = ['/admin', '/.env', '/wp-admin', '/.git', '/config', '/api/v1/secrets', '/etc/passwd', '/_src', '/_next', '/_v'];
         const path = payload?.path || payload?.url || '';
         const isSuspicious = path && suspiciousPaths.some(p => path.toLowerCase().includes(p.toLowerCase()));
         
