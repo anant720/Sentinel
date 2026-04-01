@@ -19,7 +19,7 @@ import { Worker, Job } from 'bullmq';
 import { db } from '../lib/database.js';
 import { logger } from '../lib/logger.js';
 import { EventJob, getBullMQConnection } from './event.queue.js';
-import { detectionEngine } from '../detection/engine.js';
+import { detectionEngine } from '../core/detection.engine.js';
 import { redisClient } from '../lib/redis.js';
 import { MetricsService } from '../services/metrics.service.js';
 import { BroadcastService } from '../services/broadcast.service.js';
@@ -106,7 +106,7 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
             await db.query(`UPDATE events SET risk_score = $1 WHERE id = $2`, [riskScore, eventId]);
 
             // Execute asynchronous heuristic rule registry natively
-            await detectionEngine.execute(detectionEvent, context);
+            await detectionEngine.execute(detectionEvent, orgId);
 
             // ── 7. Live Broadcast (Cross-Process via Redis) ──────────────────
             await BroadcastService.publish({

@@ -10,8 +10,9 @@ export const pool = new Pool({
     max: config.DB_MAX_CONNECTIONS,
     allowExitOnIdle: true,
     idleTimeoutMillis: config.DB_IDLE_TIMEOUT,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 5000, // Increased for cloud cold-start resilience
     statement_timeout: 10000, 
+    ssl: config.isProd ? { rejectUnauthorized: false } : false, // Required for most managed DBs (Render, AWS)
 });
 
 pool.on('connect', () => {

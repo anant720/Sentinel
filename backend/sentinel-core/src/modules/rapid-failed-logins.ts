@@ -12,64 +12,77 @@ class RapidFailedLoginsModule implements DetectionModule {
     }
 
     async execute(context: DetectionContext): Promise<void> {
-        const { orgId, event } = context;
-
-        // 1. Extract target identifier (email) from the event payload
+        const { orgId, event, redis } = context;
         const email = event.payload?.email;
-        if (!email) {
-            return; // Cannot execute without a target to aggregate against
-        }
 
-        const logCtx = { orgId, eventId: event.id, email, module: this.name };
+        if (!email) return;
+
+        const logCtx = { orgId, email, module: this.name };
 
         try {
-            // 2. Redis Stateful Counter (Count recent failed logins for this user)
-            const redisKey = `login_fail:${orgId}:${email}`;
-            const threshold = context.config?.threshold || 5;
+            const key5m = `fail:account:${orgId}:${email}:5m`;
+            const key30m = `fail:account:${orgId}:${email}:30m`;
+            const key24h = `fail:account:${orgId}:${email}:24h`;
 
-            // Atomically increment the redis state
-            const count = await context.redis.incr(redisKey);
+            const pipeline = redis.pipeline();
+            pipeline.incr(key5m);
+            pipeline.expire(key5m, 300, 'NX');
+            pipeline.incr(key30m);
+            pipeline.expire(key30m, 1800, 'NX');
+            pipeline.incr(key24h);
+            pipeline.expire(key24h, 86400, 'NX');
 
-            // Always set expiration on the first hit to bound memory (5 minutes = 300s)
-            if (count === 1) {
-                await context.redis.expire(redisKey, 300);
+            const results = await pipeline.exec();
+            if (!results) return;
+
+            const count5m = (results[0]?.[1] as number) || 0;
+            const count30m = (results[2]?.[1] as number) || 0;
+            const count24h = (results[4]?.[1] as number) || 0;
+
+            let severity: 'medium' | 'high' | 'critical' = 'medium';
+            let triggered = false;
+            let windowUsed = '';
+            let countUsed = 0;
+
+            const t5m = context.config?.threshold5m || 5;
+            const t30m = context.config?.threshold30m || 15;
+            const t24h = context.config?.threshold24h || 50;
+
+            if (count5m >= t5m) {
+                triggered = true;
+                severity = 'medium';
+                windowUsed = '5m';
+                countUsed = count5m;
+            } else if (count30m >= t30m) {
+                triggered = true;
+                severity = 'high';
+                windowUsed = '30m';
+                countUsed = count30m;
+            } else if (count24h >= t24h) {
+                triggered = true;
+                severity = 'critical';
+                windowUsed = '24h';
+                countUsed = count24h;
             }
 
-            logger.info({ ...logCtx, count }, `Threshold evaluated: ${count} within 5m via Redis`);
+            if (!triggered) return;
 
-            if (count < threshold) {
-                return; // Suppress alert if threshold is not met
-            }
-
-            // 3. Deterministic Alert Fingerprint (10 minute bucketing)
-            const suppressionWindowMs = 10 * 60 * 1000; // 10 minutes
-            const bucket = Math.floor(Date.now() / suppressionWindowMs);
-            const fingerprint = crypto
-                .createHash('sha256')
-                .update(`${orgId}:rapid_failed_login:${email}:${bucket}`)
+            const fingerprint = crypto.createHash('sha256')
+                .update(`${orgId}:rapid_fail:${email}:${windowUsed}:${Math.floor(Date.now() / 600000)}`)
                 .digest('hex');
 
-            // 4. Fire Alert (AlertService returns null if uniqueness constraint triggers)
-            const alertResult = await AlertService.createAlert(orgId, {
+            await AlertService.createAlert(orgId, {
                 eventId: event.id,
-                type: 'rapid_failed_login',
-                severity: 'medium',
+                type: 'rapid_failed_logins',
+                severity,
                 fingerprint,
                 title: 'Rapid Failed Logins',
-                description: `Detected ${count} failed login attempts targeting ${email} within 5 minutes.`,
-                metadata: {
-                    email,
-                    count,
-                    window: '5m',
-                }
+                description: `Detected ${countUsed} failed login attempts for ${email} in ${windowUsed}.`,
+                metadata: { email, count: countUsed, window: windowUsed }
             });
 
-            if (alertResult) {
-                logger.warn(logCtx, `🚨 Detection Fired: ${count} failed logins in 5m`);
-            }
         } catch (err: any) {
-            logger.error({ ...logCtx, err: err.message, stack: err.stack }, 'Execution error in detection module');
-            // Deliberately swallow the error to fulfill the contract: "Must never throw uncaught errors."
+            logger.error({ ...logCtx, err: err.message }, 'RapidFailedLogins module error');
         }
     }
 }

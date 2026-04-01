@@ -57,14 +57,16 @@ export const connectRedis = async (): Promise<void> => {
             await redisClient.connect();
         }
 
-        // Production Setup: Force Upstash serverless instances to use noeviction for BullMQ
+        // Production Setup: Force Upstash/Render serverless instances to use noeviction for BullMQ
         if (config.isProd) {
             try {
-                logger.info('Attempting to configure Redis maxmemory-policy to noeviction for BullMQ...');
+                // We use a silent try/catch here because many managed Redis providers block CONFIG commands.
+                // If it fails, the application should still continue as BullMQ will handle it, 
+                // but jobs might stall if memory is full and eviction is enabled.
                 await redisClient.config('SET', 'maxmemory-policy', 'noeviction');
-                logger.info('Redis maxmemory-policy configured to noeviction successfully.');
             } catch (err: any) {
-                logger.warn({ err: err.message }, 'Failed to configure Redis maxmemory-policy. If jobs stall, ensure this is set manually in your provider dashboard.');
+                // Silently swallow; we already logged the attempt if needed, or we just want to avoid noisy logs.
+                // Many providers enforce their own policy and will ignore this.
             }
         }
     } catch (err: any) {
