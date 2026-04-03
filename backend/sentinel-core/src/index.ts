@@ -200,21 +200,25 @@ export async function setupServer(fastify: FastifyInstance) {
                     try {
                         const { db } = await import('./lib/database.js');
                         const { enqueueEvent } = await import('./queues/event.queue.js');
-                        // Use a sentinel internal org for self-monitoring events (null org = system)
-                        // We store against a "system" org to avoid leaking cross-org data
-                        const SYSTEM_ORG = process.env.SYSTEM_ORG_ID || '00000000-0000-0000-0000-000000000000';
-                        const res = await db.query(
-                            `INSERT INTO events
-                                (organization_id, event_type, payload, signature, integrity_hash, processed, ip_address)
-                             VALUES ($1, $2, $3, $4, $5, false, $6)
-                             RETURNING id`,
-                            [
-                                SYSTEM_ORG, eventType,
-                                JSON.stringify({ url, method: request.method, user_agent: request.headers['user-agent'], ip_address: ip, status_code: reply.statusCode }),
-                                'http-hook', 'http-hook', ip
-                            ]
-                        );
-                        await enqueueEvent(res.rows[0].id, SYSTEM_ORG);
+                        
+                        // Broadcast the external perimeter scan to all active tenant organizations
+                        // so they are aware the platform logic is under attack.
+                        const activeOrgs = await db.query('SELECT id FROM organizations WHERE is_active = true');
+                        
+                        for (const row of activeOrgs.rows) {
+                            const res = await db.query(
+                                `INSERT INTO events
+                                    (organization_id, event_type, payload, signature, integrity_hash, processed, ip_address)
+                                 VALUES ($1, $2, $3, $4, $5, false, $6)
+                                 RETURNING id`,
+                                [
+                                    row.id, eventType,
+                                    JSON.stringify({ url, method: request.method, user_agent: request.headers['user-agent'], ip_address: ip, status_code: reply.statusCode }),
+                                    'http-hook', 'http-hook', ip
+                                ]
+                            );
+                            await enqueueEvent(res.rows[0].id, row.id);
+                        }
                     } catch { /* non-blocking, never crash the server */ }
                 });
             }
