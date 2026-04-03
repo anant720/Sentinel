@@ -32,12 +32,21 @@ export default function DashboardPage() {
     refetchInterval: 5000,
   });
 
+  const [scanResult, setScanResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
   const scanMutation = useMutation({
     mutationFn: () => DashboardService.runScan(),
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['stats'] });
       qc.invalidateQueries({ queryKey: ['historical-risk', range] });
+      setScanResult({ ok: true, msg: `Scan complete — Risk Score: ${data?.riskScore ?? data?.risk_score ?? '—'}` });
+      setTimeout(() => setScanResult(null), 5000);
     },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Unknown error';
+      setScanResult({ ok: false, msg: `Scan failed: ${detail}` });
+      setTimeout(() => setScanResult(null), 8000);
+    }
   });
 
   // Map historical risk — backend returns array of {timestamp, score}
@@ -78,6 +87,22 @@ export default function DashboardPage() {
           {scanMutation.isPending ? 'SCANNING...' : 'RUN SECURITY SCAN'}
         </button>
       </div>
+
+      {/* Scan Result Banner */}
+      {scanResult && (
+        <div style={{
+          marginBottom: 16, padding: '10px 16px', borderRadius: 8,
+          background: scanResult.ok ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+          border: `1px solid ${scanResult.ok ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}`,
+          color: scanResult.ok ? '#10b981' : '#ef4444',
+          fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8
+        }}>
+          <span className="material-icons" style={{ fontSize: 16 }}>
+            {scanResult.ok ? 'check_circle' : 'error'}
+          </span>
+          {scanResult.msg}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
