@@ -22,6 +22,21 @@ class DeviceAnomalyModule implements DetectionModule {
         return ['*'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Device Anomaly (Burst)',
+            description: 'Detects devices emitting events at abnormal rates (malware beaconing/compromised agent). Pure Redis sliding window, no DB hit. Rate-multiplier severity: 2x=High, 3x=Critical.',
+            icon: 'devices',
+            category: 'infrastructure' as const,
+            configFields: [
+                { key: 'threshold',    label: 'Events/min threshold', default: 20 },
+                { key: 'critMultiplier', label: 'Critical multiplier', default: 3 },
+            ],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
 

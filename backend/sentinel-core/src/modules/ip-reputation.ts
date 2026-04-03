@@ -23,6 +23,22 @@ class IpReputationModule implements DetectionModule {
         return ['*'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'IP Reputation Engine',
+            description: 'Cross-module IP scoring aggregated from all detection rules. 3 tiers: Monitor (100), Block (200), Ban (350). Ban recommendation feeds WAF/Cloudflare for automatic blocking. 24h auto-decay.',
+            icon: 'gpp_bad',
+            category: 'behavioral' as const,
+            configFields: [
+                { key: 'thresholdWarn',  label: 'Monitor threshold', default: 100 },
+                { key: 'thresholdBlock', label: 'Block threshold',   default: 200 },
+                { key: 'thresholdBan',   label: 'Ban threshold',     default: 350 },
+            ],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     // Reputation damage weights per event type — most are from the IP's own behavior
     private readonly IP_DAMAGE: Record<string, number> = {
         // Login attack signals

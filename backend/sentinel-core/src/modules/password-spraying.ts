@@ -18,6 +18,21 @@ class PasswordSprayingModule implements DetectionModule {
         return ['login_failed', 'login_failure'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Password Spraying',
+            description: 'Single IP targeting many accounts to bypass per-account lockouts. NIST 800-63B threshold (5 unique accounts). Detects sustained 30-minute campaigns.',
+            icon: 'manage_accounts',
+            category: 'identity' as const,
+            configFields: [
+                { key: 'threshold5m',  label: 'Unique Accounts (5 min)',  default: 5 },
+                { key: 'threshold30m', label: 'Unique Accounts (30 min)', default: 20 },
+            ],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
         const email = event.payload?.email;

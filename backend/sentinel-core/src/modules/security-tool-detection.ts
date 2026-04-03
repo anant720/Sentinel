@@ -20,6 +20,18 @@ class SecurityToolDetectionModule implements DetectionModule {
         return ['scanner_detected', 'suspicious_http_request'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Security Tool Detection',
+            description: 'Detects 35+ named pentest tools (Burp, SQLMap, Nikto, etc.), generic HTTP automation libraries, and empty User-Agents. Behavioral 404-rate pattern catches tools with spoofed UAs.',
+            icon: 'bug_report',
+            category: 'network' as const,
+            configFields: [],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     // Named tool signatures — matched against User-Agent header
     private readonly NAMED_TOOLS: { pattern: string; name: string }[] = [
         // Vulnerability scanners

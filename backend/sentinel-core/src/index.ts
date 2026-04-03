@@ -531,6 +531,29 @@ export async function setupServer(fastify: FastifyInstance) {
                 }
             );
 
+            // ── Detection Modules Registry (DYNAMIC — always mirrors what the engine loaded) ──
+            // This is the single source of truth: adding a file to src/modules/ is enough
+            // for it to appear in the dashboard. No frontend code changes needed.
+            protected_.get('/detection/modules',
+                { preHandler: permissionMiddleware(Permission.ORG_READ) },
+                async (request: any, reply: any) => {
+                    const allModules = detectionEngine.getModules();
+                    const modules = allModules.map(mod => {
+                        const meta = mod.metadata ? mod.metadata() : null;
+                        return {
+                            id: mod.name,
+                            label: meta?.label ?? mod.name,
+                            description: meta?.description ?? '',
+                            icon: meta?.icon ?? 'shield',
+                            category: meta?.category ?? 'behavioral',
+                            configFields: meta?.configFields ?? [],
+                            subscribedEvents: mod.subscribesTo(),
+                        };
+                    });
+                    return { data: modules, total: modules.length };
+                }
+            );
+
             // Devices
             protected_.get('/devices',
                 { preHandler: permissionMiddleware(Permission.ORG_READ) },

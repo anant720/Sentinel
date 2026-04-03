@@ -27,6 +27,24 @@ export interface DetectionContext {
     redis: Redis;
 }
 
+export interface ModuleConfigField {
+    key: string;
+    label: string;
+    default: number;
+    min?: number;
+    max?: number;
+}
+
+export interface ModuleMetadata {
+    id: string;
+    label: string;
+    description: string;
+    icon: string;
+    category: 'identity' | 'network' | 'behavioral' | 'infrastructure';
+    configFields: ModuleConfigField[];
+    subscribedEvents: string[];
+}
+
 export interface DetectionModule {
     name: string;
 
@@ -36,6 +54,13 @@ export interface DetectionModule {
      * Return ['*'] to subscribe to all events.
      */
     subscribesTo(): string[];
+
+    /**
+     * Optional: return rich metadata for the module registry API.
+     * If implemented, this module will automatically appear on the
+     * Detection Logic configuration page in the frontend.
+     */
+    metadata?(): ModuleMetadata;
 
     /**
      * Execute detection logic.

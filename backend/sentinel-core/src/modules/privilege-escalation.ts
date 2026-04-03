@@ -21,6 +21,18 @@ class PrivilegeEscalationModule implements DetectionModule {
         return ['user_role_updated'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Privilege Escalation',
+            description: 'Detects role elevation to admin/owner. Self-promotion (actor = target) always triggers Critical. Off-hours changes and rapid campaign (3+ in 30 min) escalate to Critical.',
+            icon: 'admin_panel_settings',
+            category: 'identity' as const,
+            configFields: [],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
         const { target_user_id, previous_role, new_role, actor_id } = event.payload || {};

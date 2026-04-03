@@ -32,6 +32,18 @@ class ImpossibleTravelModule implements DetectionModule {
         return ['login_success'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Impossible Travel',
+            description: 'Flags concurrent sessions from physically impossible locations. Detects VPN mid-session rotation and cross-continent logins faster than commercial aviation. 72h sliding window.',
+            icon: 'flight',
+            category: 'identity' as const,
+            configFields: [],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
         const email   = event.payload?.email;

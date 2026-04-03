@@ -18,6 +18,20 @@ class DistributedLoginModule implements DetectionModule {
         return ['login_failed', 'login_failure'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Distributed Brute Force',
+            description: 'Many IPs targeting one account — the botnet/credential-stuffing pattern. Country-diversity scoring: 5+ countries = global botnet = Critical severity.',
+            icon: 'hub',
+            category: 'identity' as const,
+            configFields: [
+                { key: 'threshold', label: 'Unique IPs (10 min)', default: 4 },
+            ],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
         const email = event.payload?.email;

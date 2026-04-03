@@ -113,6 +113,15 @@ export class DetectionEngine {
             }
         });
     }
+
+    /**
+     * Returns all currently loaded detection modules.
+     * Used by the /detection/modules API to expose the live registry to the frontend.
+     * Truly dynamic: reflects whatever files are in the modules/ directory on startup.
+     */
+    getModules() {
+        return this.pluginLoader.getAllModules();
+    }
 }
 
 // Export a singleton instance for global use

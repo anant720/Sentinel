@@ -22,6 +22,18 @@ class NewDeviceLogonModule implements DetectionModule {
         return ['login_success'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'New Device / Browser',
+            description: 'Alerts on first login from an unrecognized device. Requires 2+ prior logins to avoid false positives. Composite risk: country change (+30), off-hours (+20), sanctioned country (+25).',
+            icon: 'phonelink_setup',
+            category: 'identity' as const,
+            configFields: [],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
         const payload = event.payload;

@@ -3,43 +3,50 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { OrgService } from '../../../lib/services/org.service';
 import { useAuthStore } from '../../../lib/store';
 import { OrgSettings } from '../../../types';
+import api from '../../../lib/api';
 
-// All 13 detection modules — matches backend detection engine exactly
-const MODULES = [
-  // ── Identity Attack Detection ────────────────────────────────────────────
-  { id: 'rapid_failed_logins',    label: 'Brute Force Detection',      icon: 'bolt',             desc: 'Detects consecutive failed login attempts per account AND per IP using true sliding windows. Dual-axis detection: protects both the identity and catches the attacker.', fields: [{ key: 'threshold5m', label: 'Max Failures (5 min)', default: 5 }, { key: 'threshold15m', label: 'Max Failures (15 min)', default: 15 }, { key: 'ipThreshold5m', label: 'Max IP Failures (5 min)', default: 10 }] },
-  { id: 'password_spraying',      label: 'Password Spraying',          icon: 'manage_accounts',  desc: 'Detects a single IP targeting many accounts (one password, many users). Uses NIST 800-63B recommended threshold of 5+ unique accounts. Catches attackers bypassing per-account lockouts.', fields: [{ key: 'threshold5m', label: 'Unique Accounts (5 min)', default: 5 }, { key: 'threshold30m', label: 'Unique Accounts (30 min)', default: 20 }] },
-  { id: 'distributed_login',      label: 'Distributed Brute Force',    icon: 'hub',              desc: 'Detects many IPs targeting one account — the botnet/credential-stuffing pattern. Includes country-diversity scoring: global botnet (5+ countries) = Critical.', fields: [{ key: 'threshold', label: 'Unique IPs (10 min)', default: 4 }] },
-  { id: 'impossible_travel',      label: 'Impossible Travel',          icon: 'flight',           desc: 'Flags concurrent sessions from physically impossible locations. Detects VPN mid-session switching and cross-continent logins faster than commercial aviation speed. 72h sliding window.', fields: [] },
-  { id: 'new_device_logon',       label: 'New Device / Browser',       icon: 'phonelink_setup',  desc: 'Alerts on first login from an unrecognized device for users with established login history. Composite risk scoring includes country change, off-hours, and high-risk country detection.', fields: [] },
-  { id: 'privilege_escalation',   label: 'Privilege Escalation',       icon: 'admin_panel_settings', desc: 'Detects role elevation to admin/owner. Self-promotion (actor escalating their own account) and rapid campaign escalation (3+ accounts in 30 min) trigger Critical alerts.', fields: [] },
+// Module definition shape — mirrors backend ModuleMetadata interface
+interface ModuleConfigField { key: string; label: string; default: number; }
+interface DetectionModuleDef {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  category: 'identity' | 'network' | 'behavioral' | 'infrastructure';
+  configFields: ModuleConfigField[];
+  subscribedEvents: string[];
+}
 
-  // ── Network & Perimeter Attack Detection ────────────────────────────────
-  { id: 'directory_brute_force',  label: 'Directory / Path Scanning',  icon: 'folder_open',      desc: 'Rate-based detection of path enumeration with 80+ known attack paths in 3 sensitivity tiers (Critical: .env/.git/passwd, High: /admin/actuator, Medium: /backup). Alerts once per burst, not per request.', fields: [{ key: 'threshold', label: 'Requests/min threshold', default: 10 }] },
-  { id: 'security_tool_detection',label: 'Security Tool Detection',    icon: 'bug_report',       desc: 'Detects 35+ named penetration testing tools (Burp, SQLMap, Nikto, etc.), generic automated HTTP libraries, and empty User-Agents. Behavioral 404-rate pattern catches tools with spoofed UAs.', fields: [] },
-
-  // ── Behavioral & Cross-Signal Analytics ─────────────────────────────────
-  { id: 'fingerprint_campaign',   label: 'Automated Campaign',         icon: 'fingerprint',      desc: 'Tracks IP+UA fingerprints across all event types using a 1-hour sliding window. Detects automated attacks that rotate between event types. Headless/empty UA treated as high-confidence scanner.', fields: [{ key: 'thresholdHigh', label: 'High Alert threshold', default: 10 }, { key: 'thresholdCritical', label: 'Critical Alert threshold', default: 50 }] },
-  { id: 'risk_scoring',           label: 'Risk Score Aggregation',     icon: 'query_stats',      desc: 'Cross-module cumulative risk engine with time-decay (4h TTL). 20+ event types mapped to risk weights. login_success reduces score. 3-tier thresholds: Medium (50), High (75), Critical (100).', fields: [{ key: 'thresholdMedium', label: 'Medium Tier threshold', default: 50 }, { key: 'thresholdHigh', label: 'High Tier threshold', default: 75 }, { key: 'thresholdCritical', label: 'Critical Tier threshold', default: 100 }] },
-  { id: 'ip_reputation',          label: 'IP Reputation Engine',       icon: 'gpp_bad',          desc: 'NEW: Cross-module IP reputation scoring aggregated from all other detection rules. 3 tiers: Monitor (100), Block (200), Ban (350). Ban recommendation can be fed to WAF/Cloudflare for automatic IP blocking.', fields: [{ key: 'thresholdWarn', label: 'Monitor threshold', default: 100 }, { key: 'thresholdBlock', label: 'Block threshold', default: 200 }, { key: 'thresholdBan', label: 'Ban threshold', default: 350 }] },
-  { id: 'device_anomaly_burst',   label: 'Device Anomaly (Burst)',     icon: 'devices',          desc: 'Detects devices emitting events at abnormal rates — potential malware beaconing or compromised agent. Pure Redis-based sliding window (no DB hit). Rate-multiplier severity: 2x = High, 3x = Critical.', fields: [{ key: 'threshold', label: 'Events/min threshold', default: 20 }] },
-  { id: 'enrollment_token_abuse', label: 'Enrollment Token Abuse',     icon: 'token',            desc: 'Detects replay attacks and harvest attempts against organization enrollment tokens. Fires on expired, already-used, or invalid token usage attempts.', fields: [] },
-];
+// Category display config
+const CATEGORY_META: Record<string, { label: string; color: string }> = {
+  identity:       { label: 'Identity Attack',     color: '#4edeab' },
+  network:        { label: 'Network & Perimeter',  color: '#60a5fa' },
+  behavioral:     { label: 'Behavioral Analytics', color: '#f59e0b' },
+  infrastructure: { label: 'Infrastructure',       color: '#a78bfa' },
+};
 
 export default function DetectionLogicPage() {
   const { e2eeEnabled } = useAuthStore();
   const [settings, setSettings] = useState<OrgSettings>({});
   const [saveMsg, setSaveMsg] = useState('');
 
-  const { data } = useQuery({ queryKey: ['org-settings'], queryFn: OrgService.getSettings });
+  // ── Dynamically fetch loaded modules from the backend engine ─────────────
+  // No hardcoded list. Adding a .ts file to /modules/ and redeploying = done.
+  const { data: modulesData, isLoading: modulesLoading } = useQuery<{ data: DetectionModuleDef[]; total: number }>({
+    queryKey: ['detection-modules'],
+    queryFn: async () => { const { data } = await api.get('/detection/modules'); return data; },
+    staleTime: 60 * 1000, // Cache for 1 min — modules don't change at runtime
+  });
 
-  useEffect(() => {
-    if (data?.data) setSettings(data.data);
-  }, [data]);
+  const MODULES: DetectionModuleDef[] = modulesData?.data ?? [];
+
+  // ── Fetch org settings (per-module enabled state + thresholds) ────────────
+  const { data: settingsData } = useQuery({ queryKey: ['org-settings'], queryFn: OrgService.getSettings });
+  useEffect(() => { if (settingsData?.data) setSettings(settingsData.data); }, [settingsData]);
 
   const mutation = useMutation({
     mutationFn: () => OrgService.updateSettings(settings),
-    onSuccess: () => { setSaveMsg('Configuration saved successfully.'); setTimeout(() => setSaveMsg(''), 3000); },
+    onSuccess: () => { setSaveMsg('Configuration saved.'); setTimeout(() => setSaveMsg(''), 3000); },
     onError: (e: any) => setSaveMsg(e?.response?.data?.message || 'Failed to save. Try again.'),
   });
 
@@ -59,12 +66,20 @@ export default function DetectionLogicPage() {
 
   const activeCount = MODULES.filter(m => settings[m.id]?.enabled !== false).length;
 
+  // Group by category for organized display
+  const categories = ['identity', 'network', 'behavioral', 'infrastructure'] as const;
+  const byCategory = (cat: string) => MODULES.filter(m => m.category === cat);
+
   return (
     <div>
       <div className="page-header flex items-center justify-between">
         <div>
           <div className="page-title">Detection Engine Configuration</div>
-          <div className="page-subtitle">{activeCount} of {MODULES.length} modules active</div>
+          <div className="page-subtitle">
+            {modulesLoading
+              ? 'Loading modules from engine…'
+              : `${activeCount} of ${MODULES.length} modules active • Live from backend`}
+          </div>
         </div>
         <div className="flex gap-3 items-center">
           {saveMsg && (
@@ -84,62 +99,98 @@ export default function DetectionLogicPage() {
         </div>
       )}
 
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-        {MODULES.map(m => {
-          const s = settings[m.id] || {};
-          const enabled = s.enabled !== false; // default: enabled
-          return (
-            <div key={m.id} className="panel" style={{ opacity: enabled ? 1 : 0.65, transition: 'opacity 0.2s' }}>
-              {/* Header */}
-              <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-                <div className="flex items-center gap-3">
-                  <div style={{ width: 32, height: 32, background: enabled ? 'rgba(78,222,163,0.12)' : 'var(--surface-container-highest)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span className="material-icons" style={{ fontSize: 18, color: enabled ? 'var(--secondary)' : 'var(--outline)' }}>{m.icon}</span>
-                  </div>
-                  <div>
-                    <div className="panel-title" style={{ fontSize: '0.75rem' }}>{m.label}</div>
-                    <div className="mono text-dim" style={{ fontSize: '0.5rem', letterSpacing: '0.06em' }}>{m.id}</div>
-                  </div>
+      {modulesLoading ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--on-surface-variant)' }}>
+          <span className="material-icons" style={{ fontSize: 32, display: 'block', marginBottom: 12, opacity: 0.4 }}>radar</span>
+          <span className="mono" style={{ fontSize: '0.625rem', letterSpacing: '0.1em' }}>LOADING DETECTION ENGINE REGISTRY…</span>
+        </div>
+      ) : (
+        <>
+          {categories.map(cat => {
+            const mods = byCategory(cat);
+            if (mods.length === 0) return null;
+            const catMeta = CATEGORY_META[cat];
+            return (
+              <div key={cat} style={{ marginBottom: 32 }}>
+                {/* Category header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <div style={{ height: 1, width: 20, background: catMeta.color, opacity: 0.5 }} />
+                  <span className="mono" style={{ fontSize: '0.5625rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: catMeta.color }}>
+                    {catMeta.label}
+                  </span>
+                  <div style={{ height: 1, flex: 1, background: catMeta.color, opacity: 0.15 }} />
+                  <span className="mono text-dim" style={{ fontSize: '0.5rem' }}>{mods.length} modules</span>
                 </div>
-                <label className="toggle" title={enabled ? 'Disable module' : 'Enable module'}>
-                  <input type="checkbox" checked={enabled} onChange={() => toggleModule(m.id)} />
-                  <span className="toggle-track" />
-                </label>
+
+                <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                  {mods.map(m => {
+                    const s = settings[m.id] || {};
+                    const enabled = s.enabled !== false;
+                    return (
+                      <div key={m.id} className="panel" style={{ opacity: enabled ? 1 : 0.65, transition: 'opacity 0.2s', borderTop: `2px solid ${enabled ? catMeta.color : 'transparent'}30` }}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+                          <div className="flex items-center gap-3">
+                            <div style={{ width: 32, height: 32, background: enabled ? `${catMeta.color}18` : 'var(--surface-container-highest)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span className="material-icons" style={{ fontSize: 18, color: enabled ? catMeta.color : 'var(--outline)' }}>{m.icon}</span>
+                            </div>
+                            <div>
+                              <div className="panel-title" style={{ fontSize: '0.75rem' }}>{m.label}</div>
+                              <div className="mono text-dim" style={{ fontSize: '0.5rem', letterSpacing: '0.06em' }}>{m.id}</div>
+                            </div>
+                          </div>
+                          <label className="toggle" title={enabled ? 'Disable module' : 'Enable module'}>
+                            <input type="checkbox" checked={enabled} onChange={() => toggleModule(m.id)} />
+                            <span className="toggle-track" />
+                          </label>
+                        </div>
+
+                        {/* Status badge + subscribed events */}
+                        <div style={{ marginBottom: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.5rem', fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 6px', background: enabled ? `${catMeta.color}18` : 'rgba(66,71,84,0.15)', color: enabled ? catMeta.color : 'var(--outline)', border: `1px solid ${enabled ? catMeta.color : 'rgba(66,71,84,0.2)'}30` }}>
+                            {enabled ? '● Active' : '○ Disabled'}
+                          </span>
+                          {m.subscribedEvents.slice(0, 2).map(ev => (
+                            <span key={ev} style={{ fontSize: '0.45rem', fontFamily: 'var(--font-mono)', padding: '2px 5px', background: 'rgba(255,255,255,0.04)', color: 'var(--outline)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              {ev === '*' ? 'ALL EVENTS' : ev}
+                            </span>
+                          ))}
+                          {m.subscribedEvents.length > 2 && (
+                            <span style={{ fontSize: '0.45rem', fontFamily: 'var(--font-mono)', padding: '2px 5px', color: 'var(--outline)' }}>+{m.subscribedEvents.length - 2} more</span>
+                          )}
+                        </div>
+
+                        {/* Description */}
+                        <p style={{ fontSize: '0.6875rem', color: 'var(--on-surface-variant)', marginBottom: enabled && m.configFields.length > 0 ? 14 : 0, lineHeight: 1.6 }}>{m.description}</p>
+
+                        {/* Config fields (only when enabled) */}
+                        {enabled && m.configFields.map(f => (
+                          <div key={f.key} className="t-input-wrap" style={{ marginBottom: 12 }}>
+                            <label className="t-input-label">{f.label}</label>
+                            <input
+                              type="number"
+                              className="t-input"
+                              value={s[f.key] ?? f.default}
+                              min={0}
+                              onChange={e => updateField(m.id, f.key, Number(e.target.value))}
+                            />
+                          </div>
+                        ))}
+
+                        {s.last_triggered && (
+                          <div className="mono text-dim" style={{ fontSize: '0.5625rem', marginTop: 8 }}>
+                            Last triggered: {new Date(s.last_triggered).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-
-              {/* Status badge */}
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ fontSize: '0.5rem', fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 6px', background: enabled ? 'rgba(78,222,163,0.1)' : 'rgba(66,71,84,0.15)', color: enabled ? 'var(--secondary)' : 'var(--outline)', border: `1px solid ${enabled ? 'rgba(78,222,163,0.2)' : 'rgba(66,71,84,0.2)'}` }}>
-                  {enabled ? '● Active' : '○ Disabled'}
-                </span>
-              </div>
-
-              {/* Description */}
-              <p style={{ fontSize: '0.6875rem', color: 'var(--on-surface-variant)', marginBottom: enabled && m.fields.length > 0 ? 14 : 0, lineHeight: 1.6 }}>{m.desc}</p>
-
-              {/* Fields (only when enabled) */}
-              {enabled && m.fields.map(f => (
-                <div key={f.key} className="t-input-wrap" style={{ marginBottom: 12 }}>
-                  <label className="t-input-label">{f.label}</label>
-                  <input
-                    type="number"
-                    className="t-input"
-                    value={s[f.key] ?? f.default}
-                    min={0}
-                    onChange={e => updateField(m.id, f.key, Number(e.target.value))}
-                  />
-                </div>
-              ))}
-
-              {s.last_triggered && (
-                <div className="mono text-dim" style={{ fontSize: '0.5625rem', marginTop: 8 }}>
-                  Last triggered: {new Date(s.last_triggered).toLocaleString()}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }

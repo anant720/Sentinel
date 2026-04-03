@@ -20,6 +20,20 @@ class DirectoryBruteForceModule implements DetectionModule {
         return ['scanner_detected', 'suspicious_http_request'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Directory / Path Scanning',
+            description: 'Rate-based path enumeration with 80+ attack paths in 3 tiers. Critical: .env/.git/passwd. High: /admin/actuator. Alerts once per burst (not per request).',
+            icon: 'folder_open',
+            category: 'network' as const,
+            configFields: [
+                { key: 'threshold', label: 'Requests/min threshold', default: 10 },
+            ],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     // Tiered path lists — severity increases with sensitivity of the target
     private readonly CRITICAL_PATHS = [
         '/.env', '/.env.local', '/.env.production', '/.env.backup',

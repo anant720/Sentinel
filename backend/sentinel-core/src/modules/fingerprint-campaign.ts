@@ -21,6 +21,21 @@ class FingerprintCampaignModule implements DetectionModule {
         return ['*'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Automated Campaign',
+            description: 'Tracks IP+UA fingerprints across all event types in a 1-hour sliding window. Fixed hash (no event_type). Headless/empty UA treated as high-confidence scanner.',
+            icon: 'fingerprint',
+            category: 'behavioral' as const,
+            configFields: [
+                { key: 'thresholdHigh',     label: 'High Alert threshold',     default: 10 },
+                { key: 'thresholdCritical', label: 'Critical Alert threshold', default: 50 },
+            ],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
         const payload = event.payload;

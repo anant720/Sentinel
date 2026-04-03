@@ -21,6 +21,23 @@ class RapidFailedLoginsModule implements DetectionModule {
         return ['login_failed', 'login_failure'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Brute Force Detection',
+            description: 'Dual-axis brute-force detection: per-account AND per-IP sliding windows. 4-tier dynamic severity (Low/Medium/High/Critical). Follows NIST 800-63B lockout guidelines.',
+            icon: 'bolt',
+            category: 'identity' as const,
+            configFields: [
+                { key: 'threshold5m',   label: 'Max Failures (5 min)',   default: 5 },
+                { key: 'threshold15m',  label: 'Max Failures (15 min)',  default: 15 },
+                { key: 'threshold1h',   label: 'Max Failures (1 hour)',  default: 40 },
+                { key: 'ipThreshold5m', label: 'Max IP Failures (5 min)', default: 10 },
+            ],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
         const payload = event.payload;

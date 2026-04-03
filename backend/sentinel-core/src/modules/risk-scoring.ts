@@ -21,6 +21,22 @@ class RiskScoringModule implements DetectionModule {
         return ['*'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Risk Score Aggregation',
+            description: 'Cross-module cumulative risk engine with 4h time-decay. 20+ event weights. login_success REDUCES score. 3-tier thresholds: Medium (50), High (75), Critical (100).',
+            icon: 'query_stats',
+            category: 'behavioral' as const,
+            configFields: [
+                { key: 'thresholdMedium',   label: 'Medium threshold',   default: 50 },
+                { key: 'thresholdHigh',     label: 'High threshold',     default: 75 },
+                { key: 'thresholdCritical', label: 'Critical threshold', default: 100 },
+            ],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
         const payload = event.payload;

@@ -10,6 +10,18 @@ class EnrollmentAbuseModule implements DetectionModule {
         return ['enrollment_token_abuse'];
     }
 
+    metadata() {
+        return {
+            id: this.name,
+            label: 'Enrollment Token Abuse',
+            description: 'Detects replay attacks and harvest attempts against device enrollment tokens. Fires on expired, already-used, or invalid token usage. Indicates insider threat or token leakage.',
+            icon: 'token',
+            category: 'infrastructure' as const,
+            configFields: [],
+            subscribedEvents: this.subscribesTo(),
+        };
+    }
+
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event } = context;
 
