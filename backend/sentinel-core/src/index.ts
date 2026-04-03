@@ -157,7 +157,7 @@ export async function setupServer(fastify: FastifyInstance) {
             done();
         });
 
-        fastify.addHook('onResponse', (request, reply, done) => {
+        fastify.addHook('onResponse', async (request, reply) => {
             const hrtime = process.hrtime((request as any).startTime);
             const durationInSeconds = hrtime[0] + hrtime[1] / 1e9;
 
@@ -173,7 +173,51 @@ export async function setupServer(fastify: FastifyInstance) {
                     request.ip
                 ).inc();
             }
-            done();
+
+            // ── Self-Monitoring: Convert suspicious HTTP traffic into detection events ──
+            const url = request.url;
+            const ua = (request.headers['user-agent'] || '').toLowerCase();
+            const ip = request.ip;
+            const isHealthOrMetrics = url.startsWith('/health') || url === '/metrics' || url === '/';
+
+            if (isHealthOrMetrics) return;
+
+            const knownScannerUAs = [
+                'nikto', 'sqlmap', 'nmap', 'burp', 'zaproxy', 'dirbuster', 'gobuster',
+                'dirb', 'ffuf', 'wfuzz', 'masscan', 'hydra', 'metasploit', 'acunetix',
+                'nessus', 'openvas', 'commix', 'wpscan', 'curl/7', 'python-requests'
+            ];
+            const isScannerUA = knownScannerUAs.some(s => ua.includes(s));
+
+            const suspiciousPaths = ['/.env', '/.git', '/wp-admin', '/admin', '/etc/passwd', '/config',
+                                     '/_src', '/_next', '/phpmyadmin', '/server-status'];
+            const isSuspiciousPath = suspiciousPaths.some(p => url.toLowerCase().startsWith(p));
+
+            // Emit a detection event for: scanner UA, 404 on suspicious path, or 400 hacking attempt
+            if (isScannerUA || (reply.statusCode === 404 && isSuspiciousPath) || reply.statusCode === 400) {
+                const eventType = isScannerUA ? 'scanner_detected' : 'suspicious_http_request';
+                setImmediate(async () => {
+                    try {
+                        const { db } = await import('./lib/database.js');
+                        const { enqueueEvent } = await import('./queues/event.queue.js');
+                        // Use a sentinel internal org for self-monitoring events (null org = system)
+                        // We store against a "system" org to avoid leaking cross-org data
+                        const SYSTEM_ORG = process.env.SYSTEM_ORG_ID || '00000000-0000-0000-0000-000000000000';
+                        const res = await db.query(
+                            `INSERT INTO events
+                                (organization_id, event_type, payload, signature, integrity_hash, processed, ip_address)
+                             VALUES ($1, $2, $3, $4, $5, false, $6)
+                             RETURNING id`,
+                            [
+                                SYSTEM_ORG, eventType,
+                                JSON.stringify({ url, method: request.method, user_agent: request.headers['user-agent'], ip_address: ip, status_code: reply.statusCode }),
+                                'http-hook', 'http-hook', ip
+                            ]
+                        );
+                        await enqueueEvent(res.rows[0].id, SYSTEM_ORG);
+                    } catch { /* non-blocking, never crash the server */ }
+                });
+            }
         });
 
         fastify.get('/metrics', async (request, reply) => {

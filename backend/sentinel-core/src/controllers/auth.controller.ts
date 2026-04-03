@@ -87,16 +87,21 @@ export class AuthController {
                     risk_score: 35,
                 });
 
-                await db.query(
+                const failResult = await db.query(
                     `INSERT INTO events (
                         organization_id, event_type, payload, signature, integrity_hash, processed,
                         ip_address, geo_country, geo_country_code, geo_city, geo_lat, geo_lon, geo_isp, geo_address
-                     ) VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                     ) VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, $13)
+                     RETURNING id`,
                     [
                         user.organization_id, 'login_failure', failPayload, 'auth-controller', 'auth-controller',
                         clientIp, geo.country, geo.countryCode, geo.city, geo.lat, geo.lon, geo.isp, geo.address
                     ]
                 );
+                // CRITICAL FIX: Enqueue so the detection engine actually processes this event
+                const { enqueueEvent } = await import('../queues/event.queue.js');
+                await enqueueEvent(failResult.rows[0].id, user.organization_id);
+
                 if ((global as any).broadcastSecurityEvent) {
                     (global as any).broadcastSecurityEvent({
                         id: `fail-${user.id}-${Date.now()}`,
