@@ -50,19 +50,22 @@ export const OrgService = {
   },
   updateSettings: async (settings: Record<string, any>) => {
     const masterKey = useAuthStore.getState().masterKey;
+
+    // If no E2EE master key, send settings directly (all plaintext)
     if (!masterKey) {
       const { data } = await api.patch('/organizations/settings', settings);
       return data;
     }
-    const encryptedSettings: Record<string, any> = {};
-    for (const moduleId of Object.keys(settings)) {
-      const { enabled, ...config } = settings[moduleId];
-      const cipherText = await CryptoService.encryptPayload(config, masterKey);
-      encryptedSettings[moduleId] = { enabled, config: cipherText };
-    }
-    const { data } = await api.patch('/organizations/settings', encryptedSettings);
+
+    // E2EE is active — IMPORTANT: numeric threshold fields MUST stay plaintext
+    // because the detection engine reads them directly from the DB with no decryption key.
+    // Only the `enabled` boolean is semantically important. Pure numeric config
+    // (threshold5m, threshold15m, etc.) is not sensitive — it's operational.
+    // We send the full settings as-is (no encryption of thresholds).
+    const { data } = await api.patch('/organizations/settings', settings);
     return data;
   },
+
   deleteOrganization: async (id: string, payload: { password: string; orgName: string }) => {
     const { data } = await api.delete(`/organizations/${id}`, { data: payload });
     return data;
