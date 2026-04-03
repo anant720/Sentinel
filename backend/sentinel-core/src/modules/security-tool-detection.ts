@@ -19,17 +19,26 @@ class SecurityToolDetectionModule implements DetectionModule {
         const knownScanners = [
             'nikto', 'sqlmap', 'nmap', 'burp', 'zap', 'dirbuster', 'gobuster', 'dirb',
             'ffuf', 'wfuzz', 'wpscan', 'acunetix', 'nessus', 'qualys', 'hydra', 
-            'metasploit', 'commix', 'tplmap', 'lfi-check', 'masscan'
+            'metasploit', 'commix', 'tplmap', 'lfi-check', 'masscan', 'w3af', 'arachni',
+            'curl/', 'python-requests', 'go-http-client', 'libwww', 'wget/',
+            'node-fetch', 'axios', 'urllib', 'aiohttp', 'okhttp', 'java/'
         ];
         
-        const isScannerUA = knownScanners.some(s => ua.includes(s));
+        const isScannerUA = !ua || ua === '' || knownScanners.some(s => ua.includes(s)) || /(bot|scan|fuzz|spider|crawler)/.test(ua);
         
         if (event.event_type !== 'scanner_detected' && !isScannerUA) {
             return;
         }
 
         const entity = payload?.ip_address || payload?.ip || 'unknown-ip';
-        const scannerName = knownScanners.find(s => ua.includes(s)) || payload?.threat_type || 'Unknown Scanner';
+        
+        // Extract the name, or default to a generic behavioral label if it was caught by heuristic
+        let scannerName = knownScanners.find(s => ua.includes(s));
+        if (!scannerName) {
+            if (!ua || ua === '') scannerName = 'Empty User-Agent (Automated Script)';
+            else if (/(bot|scan|fuzz|spider|crawler)/.test(ua)) scannerName = 'Generic Scanner Bot';
+            else scannerName = payload?.threat_type || 'Unknown Automated Script';
+        }
 
         const fingerprint = crypto.createHash('sha256')
             .update(`${orgId}:scanner_detected:${entity}:${scannerName}:${Math.floor(Date.now() / 3600000)}`)

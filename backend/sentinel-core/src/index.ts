@@ -182,12 +182,17 @@ export async function setupServer(fastify: FastifyInstance) {
 
             if (isHealthOrMetrics) return;
 
+            // Catch specific tools, plus generic libraries used by attackers to write custom tools
             const knownScannerUAs = [
                 'nikto', 'sqlmap', 'nmap', 'burp', 'zaproxy', 'dirbuster', 'gobuster',
                 'dirb', 'ffuf', 'wfuzz', 'masscan', 'hydra', 'metasploit', 'acunetix',
-                'nessus', 'openvas', 'commix', 'wpscan', 'curl/7', 'python-requests'
+                'nessus', 'openvas', 'commix', 'wpscan', 'w3af', 'arachni', 'zmap',
+                'curl/', 'python-requests', 'go-http-client', 'libwww', 'wget/',
+                'node-fetch', 'axios', 'urllib', 'aiohttp', 'okhttp', 'java/'
             ];
-            const isScannerUA = knownScannerUAs.some(s => ua.includes(s));
+            
+            // True if: UA is missing entirely, explicitly matched a tool/library, or contains generic bot terms
+            const isScannerUA = !ua || ua === '' || knownScannerUAs.some(s => ua.includes(s)) || /(bot|scan|fuzz|spider|crawler)/.test(ua);
 
             const suspiciousPaths = ['/.env', '/.git', '/wp-admin', '/admin', '/etc/passwd', '/config',
                                      '/_src', '/_next', '/phpmyadmin', '/server-status'];
