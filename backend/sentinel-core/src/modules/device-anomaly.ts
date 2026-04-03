@@ -1,73 +1,85 @@
 import { DetectionModule, DetectionContext } from '../core/detection.types.js';
-import { db } from '../lib/database.js';
 import { AlertService } from '../services/alert.service.js';
 import { logger } from '../lib/logger.js';
 import crypto from 'crypto';
 
+/**
+ * DEVICE ANOMALY BURST — Enterprise Edition
+ *
+ * Detects when a device emits events at an anomalous rate (potential malware,
+ * compromised agent, or data exfiltration beacon).
+ *
+ * Key improvements:
+ * - Redis counter replaces DB query (faster, doesn't hit DB on every event)
+ * - Sliding window instead of fixed window
+ * - Lower default threshold (20/min for browser-type devices)
+ * - Escalating severity tiers based on rate multiplier
+ */
 class DeviceAnomalyModule implements DetectionModule {
     name = 'device_anomaly_burst';
 
     subscribesTo(): string[] {
-        return ['*']; // Observe ALL events, we are looking for volume regardless of type
+        return ['*'];
     }
 
     async execute(context: DetectionContext): Promise<void> {
-        const { orgId, event, config } = context;
+        const { orgId, event, redis } = context;
 
-        // Skip internal events that don't originate from a physical endpoint
         if (!event.device_id) return;
 
-        // Extract threshold from config, or default to 100 events / minute
-        const threshold = config?.threshold || 100;
-        const windowMinutes = config?.window_minutes || 1;
+        const deviceId  = event.device_id;
+        const threshold = context.config?.threshold      ?? 20; // events/min (industry standard default)
+        const critMult  = context.config?.critMultiplier ?? 3;  // 3x threshold = critical
 
-        const logCtx = { orgId, eventId: event.id, deviceId: event.device_id, module: this.name };
+        const now = Date.now();
 
-        try {
-            // Count total events emitted by this device in the trailing window
-            const countResult = await db.query(
-                `SELECT COUNT(*) 
-                 FROM events
-                 WHERE organization_id = $1
-                   AND device_id = $2
-                   AND created_at >= $3::timestamptz - INTERVAL '${windowMinutes} minutes'`,
-                [orgId, event.device_id, event.created_at]
-            );
+        // Redis sliding window — pure in-memory, sub-millisecond
+        const rateKey = `device:burst:${orgId}:${deviceId}`;
+        const pipe = redis.pipeline();
+        pipe.zadd(rateKey, 'NX', now, `${event.id}:${now}`);
+        pipe.zremrangebyscore(rateKey, 0, now - 60 * 1000); // 1-minute window
+        pipe.zcard(rateKey);
+        pipe.expire(rateKey, 300);
 
-            const count = parseInt(countResult.rows[0]?.count || '0', 10);
+        const results = await pipe.exec();
+        if (!results) return;
 
-            if (count >= threshold) {
-                logger.info({ ...logCtx, count, threshold }, `Threshold evaluated: ${count} within ${windowMinutes}m`);
+        const eventsPerMin = (results[2]?.[1] as number) || 0;
 
-                // Fingerprint using a 5-minute bucket so we don't spam the DB during an ongoing burst
-                const suppressionWindowMs = 5 * 60 * 1000;
-                const bucket = Math.floor(Date.now() / suppressionWindowMs);
-                const fingerprint = crypto
-                    .createHash('sha256')
-                    .update(`${orgId}:device_burst:${event.device_id}:${bucket}`)
-                    .digest('hex');
+        if (eventsPerMin < threshold) return;
 
-                const alertResult = await AlertService.createAlert(orgId, {
-                    eventId: event.id,
-                    type: 'device_anomaly_burst',
-                    severity: 'high',
-                    title: 'Device Anomaly (Burst Data)',
-                    description: `Device ${event.device_id} is emitting data at an anomalous rate. Detected ${count} events over ${windowMinutes} minutes.`,
-                    fingerprint,
-                    metadata: {
-                        device_id: event.device_id,
-                        count,
-                        threshold,
-                        window_minutes: windowMinutes
-                    }
-                });
+        // Severity tier based on how far above threshold the device is
+        const ratio = eventsPerMin / threshold;
+        let severity: 'medium' | 'high' | 'critical' = 'medium';
+        if (ratio >= critMult) severity = 'critical';
+        else if (ratio >= 2)   severity = 'high';
 
-                if (alertResult) {
-                    logger.warn(logCtx, `🚨 Detection Fired: Device burst volume of ${count} events in ${windowMinutes}m`);
-                }
+        // 5-minute suppression per device per severity to avoid alert storms
+        const suppressKey = `device:suppress:${orgId}:${deviceId}:${severity}`;
+        const suppressed  = await redis.set(suppressKey, '1', 'EX', 300, 'NX');
+        if (!suppressed) return;
+
+        const fingerprint = crypto.createHash('sha256')
+            .update(`${orgId}:device_burst:${deviceId}:${Math.floor(now / 300000)}`)
+            .digest('hex');
+
+        const alertResult = await AlertService.createAlert(orgId, {
+            eventId: event.id,
+            type: 'device_anomaly_burst',
+            severity,
+            fingerprint,
+            title: 'Device Anomaly: Abnormal Event Rate',
+            description: `Device ${deviceId} is emitting ${eventsPerMin} events/min (threshold: ${threshold}/min). Potential malware, compromised agent, or data beaconing.`,
+            metadata: {
+                device_id: deviceId,
+                events_per_min: eventsPerMin,
+                threshold,
+                rate_multiplier: Math.round(ratio * 10) / 10
             }
-        } catch (err: any) {
-            logger.error({ ...logCtx, err: err.message }, 'Execution error in device anomaly detection module');
+        });
+
+        if (alertResult) {
+            logger.warn({ orgId, deviceId, eventsPerMin, threshold, severity }, '🚨 Device anomaly burst detected');
         }
     }
 }

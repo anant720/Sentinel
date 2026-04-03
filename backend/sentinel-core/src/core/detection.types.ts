@@ -9,6 +9,13 @@ export interface EventRecord {
     processed: boolean;
     created_at: Date;
     processed_at?: Date | null;
+    // DB-level geo and IP columns (populated by auth controller and HTTP hook)
+    ip_address?: string | null;
+    geo_country?: string | null;
+    geo_country_code?: string | null;
+    geo_city?: string | null;
+    geo_lat?: number | null;
+    geo_lon?: number | null;
 }
 
 import { Redis } from 'ioredis';

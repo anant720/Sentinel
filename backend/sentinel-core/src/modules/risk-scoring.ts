@@ -2,6 +2,18 @@ import { DetectionModule, DetectionContext } from '../core/detection.types.js';
 import { AlertService } from '../services/alert.service.js';
 import crypto from 'crypto';
 
+/**
+ * RISK SCORING ENGINE — Enterprise Edition
+ *
+ * A cross-module risk aggregation system that assigns cumulative risk scores to
+ * specific entities (email or IP) on every security event.
+ *
+ * Key improvements:
+ * - Time-decay: score auto-expires using TTL refresh on every hit
+ * - login_success REDUCES the risk score (proof of identity = trust restoration)
+ * - Expanded event weight map covering all 12 detection module event types
+ * - Multi-tier alert thresholds: medium (50), high (75), critical (100)
+ */
 class RiskScoringModule implements DetectionModule {
     name = 'risk_scoring';
 
@@ -11,58 +23,119 @@ class RiskScoringModule implements DetectionModule {
 
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
-        const email = event.payload?.email;
-        const ip = event.payload?.ip_address || event.payload?.ip;
+        const payload = event.payload;
+        const email   = payload?.email;
+        const ip      = payload?.ip_address || payload?.ip;
+        const type    = event.event_type;
 
         if (!email && !ip) return;
 
-        let riskDelta = 0;
-        const type = event.event_type;
+        // ── Risk Weight Map — every event type with a meaningful security signal ────────
+        // Positive = increases risk, negative = decreases risk (trust restoration)
+        const RISK_WEIGHTS: Record<string, number> = {
+            // Authentication failures — attacker signals
+            'login_failed':               +12,
+            'login_failure':              +12,
+            // Successful logins by known attackers — slight reduction (they "proved" something)
+            'login_success':              -15,
 
-        // Map risk weights
-        if (type === 'login_failed' || type === 'login_failure') riskDelta = 10;
-        else if (type === 'signature_failure') riskDelta = 30;
-        else if (type === 'replay_attempt') riskDelta = 40;
-        else if (type === 'distributed_login') riskDelta = 50;
-        else if (type === 'directory_brute_force') riskDelta = 50;
-        else if (type === 'path_scan_detected') riskDelta = 30;
-        else if (type === 'scanner_detected') riskDelta = 80;
-        else if (type === 'burst_scan_detected') riskDelta = 60;
+            // High-confidence attack signals
+            'scanner_detected':           +80,
+            'directory_brute_force':      +55,
+            'suspicious_http_request':    +30,
+            'distributed_login':          +65,
+            'rapid_failed_logins':        +50,
+            'rapid_failed_logins_ip':     +45,
+            'password_spraying':          +70,
+            
+            // Identity compromise signals
+            'impossible_travel':          +75,
+            'new_device_logon':           +40,
+            'privilege_escalation':       +85,
+            'enrollment_token_abuse':     +60,
+            'fingerprint_campaign':       +55,
+            'device_anomaly_burst':       +45,
 
-        if (riskDelta === 0) return;
+            // Integrity violations
+            'signature_failure':          +35,
+            'replay_attempt':             +45,
 
-        const entity = email || ip;
-        const riskKey = `risk:account:${orgId}:${entity}`;
+            // Lockout/enforcement signals
+            'lockout_triggered':          +25,
+        };
 
-        const pipeline = redis.pipeline();
-        pipeline.incrby(riskKey, riskDelta);
-        pipeline.expire(riskKey, 3600, 'NX');
+        const delta = RISK_WEIGHTS[type];
+        if (delta === undefined) return; // Unknown event type — skip
 
-        const results = await pipeline.exec();
+        const entity  = email || ip!;
+        const riskKey = `risk:entity:${orgId}:${entity}`;
+
+        // Apply delta (increment or decrement)
+        const pipe = redis.pipeline();
+        if (delta > 0) {
+            pipe.incrby(riskKey, delta);
+        } else {
+            pipe.decrby(riskKey, Math.abs(delta));
+        }
+        // Time-decay: every update refreshes TTL to 4 hours. Inactive entities auto-expire.
+        pipe.expire(riskKey, 14400); // 4 hours TTL refresh
+
+        const results = await pipe.exec();
         if (!results) return;
 
-        const currentRisk = (results[0]?.[1] as number) || 0;
-        const threshold = context.config?.threshold || 100;
+        let currentRisk = (results[0]?.[1] as number) || 0;
 
-        if (currentRisk >= threshold) {
-            const fingerprint = crypto.createHash('sha256')
-                .update(`${orgId}:risk_score_breach:${entity}:${Math.floor(Date.now() / 3600000)}`)
-                .digest('hex');
-
-            await AlertService.createAlert(orgId, {
-                eventId: event.id,
-                type: 'risk_threshold_breach',
-                severity: 'critical',
-                fingerprint,
-                title: 'High Risk Threshold Breach',
-                description: `Entity ${entity} has reached a cumulative risk score of ${currentRisk} (Threshold: ${threshold}).`,
-                metadata: {
-                    entity,
-                    score: currentRisk,
-                    last_event: type
-                }
-            });
+        // Clamp score to [0, 500] — don't let it go negative or infinitely high
+        if (currentRisk < 0) {
+            await redis.set(riskKey, '0', 'EX', 14400);
+            currentRisk = 0;
         }
+        if (currentRisk > 500) {
+            await redis.set(riskKey, '500', 'EX', 14400);
+            currentRisk = 500;
+        }
+
+        // Multi-tier alert thresholds (only alert on increase events)
+        if (delta <= 0) return;
+
+        const thresholdCritical = context.config?.thresholdCritical ?? 100;
+        const thresholdHigh     = context.config?.thresholdHigh     ?? 75;
+        const thresholdMedium   = context.config?.thresholdMedium   ?? 50;
+
+        let severity: 'medium' | 'high' | 'critical' | null = null;
+        let tier = '';
+
+        if (currentRisk >= thresholdCritical) {
+            severity = 'critical'; tier = `${thresholdCritical}+`;
+        } else if (currentRisk >= thresholdHigh) {
+            severity = 'high'; tier = `${thresholdHigh}+`;
+        } else if (currentRisk >= thresholdMedium) {
+            severity = 'medium'; tier = `${thresholdMedium}+`;
+        }
+
+        if (!severity) return;
+
+        // Use 10-minute bucket to avoid duplicate alerts per scoring tier per entity
+        const bucket = Math.floor(Date.now() / 600000);
+        const fp = crypto.createHash('sha256')
+            .update(`${orgId}:risk_score:${entity}:${severity}:${bucket}`)
+            .digest('hex');
+
+        await AlertService.createAlert(orgId, {
+            eventId: event.id,
+            type: 'risk_threshold_breach',
+            severity,
+            fingerprint: fp,
+            title: 'Entity Risk Score Threshold Breach',
+            description: `Entity ${entity} reached a cumulative risk score of ${currentRisk} (Tier: ${tier}). Triggered by: ${type}.`,
+            metadata: {
+                entity,
+                score: currentRisk,
+                delta,
+                threshold_tier: tier,
+                triggering_event: type
+            }
+        });
     }
 }
 

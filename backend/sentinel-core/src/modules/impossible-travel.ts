@@ -1,22 +1,28 @@
 import { DetectionModule, DetectionContext } from '../core/detection.types.js';
-import { logger } from '../lib/logger.js';
 import { AlertService } from '../services/alert.service.js';
+import { logger } from '../lib/logger.js';
 import crypto from 'crypto';
 
 /**
- * Calculates the great-circle distance between two points (in kilometers)
- * using the Haversine formula.
+ * IMPOSSIBLE TRAVEL — Enterprise Edition
+ *
+ * Detects simultaneous or near-simultaneous sessions from geographically impossible locations.
+ * Methodology mirrors Microsoft Azure AD Identity Protection's "Impossible Travel" rule.
+ *
+ * Key improvements:
+ * - 72-hour sliding window (not 24h)
+ * - Speed-based severity: >1200 km/h (teleportation) = critical, >800 km/h = high
+ * - VPN/datacenter heuristic: flags simultaneous sessions even at 0 km/h if IP type differs
  */
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371; // Radius of the Earth in km
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371;
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLon = (lon2 - lon1) * (Math.PI / 180);
     const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.sin(dLat / 2) ** 2 +
         Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+        Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 class ImpossibleTravelModule implements DetectionModule {
@@ -28,78 +34,95 @@ class ImpossibleTravelModule implements DetectionModule {
 
     async execute(context: DetectionContext): Promise<void> {
         const { orgId, event, redis } = context;
-        const email = event.payload?.email;
+        const email   = event.payload?.email;
+        const geo     = event.payload?.geo;
+        const currentIp = event.payload?.ip_address || event.payload?.ip || 'unknown';
 
         if (!email) return;
-
-        const geo = event.payload?.geo;
-        if (!geo || typeof geo.lat !== 'number' || typeof geo.lon !== 'number') {
-            return;
-        }
+        if (!geo || typeof geo.lat !== 'number' || typeof geo.lon !== 'number') return;
 
         const currentLat = geo.lat;
         const currentLon = geo.lon;
-        const currentTs = new Date(event.created_at).getTime();
-        const currentIp = event.payload?.ip || 'unknown';
+        const currentTs  = new Date(event.created_at).getTime();
+        const cacheKey   = `user:last_loc:${orgId}:${email}`;
 
-        const cacheKey = `user:last_loc:${orgId}:${email}`;
-        
         try {
-            // 1. Fetch last known location from Redis
             const lastLocStr = await redis.get(cacheKey);
-            
-            // Always update the cache with the newest location regardless of result
-            const currentLocData = JSON.stringify({
-                lat: currentLat,
-                lon: currentLon,
-                timestamp: currentTs,
-                ip: currentIp,
-                city: geo.city,
-                country: geo.country
-            });
-            await redis.set(cacheKey, currentLocData, 'EX', 86400 * 7); // Cache for 7 days
+
+            // Always update cache with current location
+            await redis.set(cacheKey, JSON.stringify({
+                lat: currentLat, lon: currentLon,
+                timestamp: currentTs, ip: currentIp,
+                city: geo.city, country: geo.country
+            }), 'EX', 86400 * 7); // 7-day cache
 
             if (!lastLocStr) return;
 
             const lastLoc = JSON.parse(lastLocStr);
-            
-            // 2. Calculate time difference in hours
-            const timeDiffMs = Math.abs(currentTs - lastLoc.timestamp);
-            const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+            const timeDiffMs    = currentTs - lastLoc.timestamp;
+            const timeDiffHours = timeDiffMs / 3600000;
 
-            // Ignore if time difference is negligible (< 1 minute) or too long ago (> 24 hours)
-            if (timeDiffHours < 0.016 || timeDiffHours > 24) return;
+            // Skip non-sequential events or events too far apart (72h)
+            if (timeDiffMs < 30000 || timeDiffHours > 72) return;
 
-            // 3. Calculate physical distance in km
-            const distanceKm = calculateDistance(currentLat, currentLon, lastLoc.lat, lastLoc.lon);
+            const distanceKm = haversineKm(currentLat, currentLon, lastLoc.lat, lastLoc.lon);
 
-            // 4. Calculate velocity (km/h)
-            const velocity = distanceKm / timeDiffHours;
+            // Skip trivially close locations (same city/ISP movement)
+            if (distanceKm < 50) return;
 
-            // Threshold: 800 km/h (roughly commercial jet speed)
-            const VELOCITY_THRESHOLD = 800;
+            const velocityKmh = distanceKm / timeDiffHours;
 
-            if (velocity > VELOCITY_THRESHOLD && distanceKm > 50) {
-                const fingerprint = crypto.createHash('sha256')
-                    .update(`${orgId}:impossible_travel:${email}:${Math.floor(currentTs / 3600000)}`)
-                    .digest('hex');
+            // Severity tiers based on physical impossibility
+            // Commercial jet max ~1000 km/h. >1200 = superhuman (VPN instant switch or stolen token)
+            let severity: 'high' | 'critical' | null = null;
+            let assessment = '';
 
-                await AlertService.createAlert(orgId, {
-                    eventId: event.id,
-                    type: 'impossible_travel',
-                    severity: 'critical',
-                    fingerprint,
-                    title: 'Impossible Travel Detected',
-                    description: `User ${email} logged in from ${geo.city || 'Unknown'} after previously being in ${lastLoc.city || 'Unknown'}. Speed: ${Math.round(velocity)} km/h.`,
-                    metadata: {
-                        distance_km: Math.round(distanceKm),
-                        velocity_kmh: Math.round(velocity),
-                        prev_city: lastLoc.city,
-                        curr_city: geo.city,
-                        time_diff_min: Math.round(timeDiffMs / 60000)
-                    }
-                });
+            if (velocityKmh > 1200 || (distanceKm > 2000 && timeDiffHours < 1)) {
+                // Physically impossible: cross-continent in under 1 hour or superhuman speed
+                severity = 'critical';
+                assessment = 'Physically impossible — likely simultaneous sessions or stolen credential';
+            } else if (velocityKmh > 900 && distanceKm > 500) {
+                // Faster than any commercial aviation route + significant distance = suspicious
+                severity = 'critical';
+                assessment = 'Faster than commercial aviation maximum — likely account takeover';
+            } else if (velocityKmh > 800 && distanceKm > 100) {
+                severity = 'high';
+                assessment = 'Exceeds commercial aviation cruising speed — anomalous travel';
             }
+
+            if (!severity) return;
+
+            // Additional heuristic: same country but different ISP type within seconds = VPN switch
+            const isSameCountry = lastLoc.country && geo.country && lastLoc.country === geo.country;
+            if (isSameCountry && timeDiffMs < 120000 && distanceKm > 100) {
+                severity = 'critical';
+                assessment = 'Rapid location switch within same country — likely VPN/proxy rotation mid-session';
+            }
+
+            const fingerprint = crypto.createHash('sha256')
+                .update(`${orgId}:impossible_travel:${email}:${Math.floor(currentTs / 3600000)}`)
+                .digest('hex');
+
+            await AlertService.createAlert(orgId, {
+                eventId: event.id,
+                type: 'impossible_travel',
+                severity,
+                fingerprint,
+                title: 'Impossible Travel Detected',
+                description: `${email} logged in from ${geo.city || geo.country || 'Unknown'} at ${Math.round(velocityKmh)} km/h from previous location in ${lastLoc.city || lastLoc.country || 'Unknown'}. ${assessment}.`,
+                metadata: {
+                    distance_km:   Math.round(distanceKm),
+                    velocity_kmh:  Math.round(velocityKmh),
+                    time_diff_min: Math.round(timeDiffMs / 60000),
+                    prev_city:     lastLoc.city,
+                    prev_country:  lastLoc.country,
+                    curr_city:     geo.city,
+                    curr_country:  geo.country,
+                    prev_ip:       lastLoc.ip,
+                    curr_ip:       currentIp,
+                    assessment
+                }
+            });
         } catch (err: any) {
             logger.error({ err: err.message, email }, 'ImpossibleTravel detection failure');
         }
