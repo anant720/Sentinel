@@ -113,6 +113,34 @@ export async function setupServer(fastify: FastifyInstance) {
         const fastifyWebsocket = (await import('@fastify/websocket')).default;
         await fastify.register(fastifyWebsocket);
 
+        // Threat Map WebSocket Live Feed
+        fastify.get('/threat-map/live', { websocket: true }, async (connection: any, request: any) => {
+            const token = (request.query as any).token;
+            if (!token) return connection.socket.close(1008, 'Token required');
+            let decoded: any;
+            try {
+                decoded = fastify.jwt.verify(token);
+            } catch (err) {
+                return connection.socket.close(1008, 'Invalid token');
+            }
+            
+            const orgId = decoded.orgId;
+            const { redisClient } = await import('./lib/redis.js');
+            const redisSubMap = redisClient.duplicate();
+            
+            redisSubMap.on('message', (channel, message) => {
+                if (channel === `org:${orgId}:geo_events` && connection.socket.readyState === 1) {
+                    connection.socket.send(message);
+                }
+            });
+            
+            await redisSubMap.subscribe(`org:${orgId}:geo_events`);
+
+            connection.socket.on('close', () => {
+                redisSubMap.quit();
+            });
+        });
+
         // ------------------------------------------------------------------
         // 2. Public & Health Routes (No global rate limit to ensure monitoring stays alive)
         // ------------------------------------------------------------------
@@ -619,6 +647,60 @@ export async function setupServer(fastify: FastifyInstance) {
             );
 
             protected_.register(async (dashboard: FastifyInstance) => {
+                // Threat Map REST API
+                dashboard.get('/threat-map/ips',
+                    { preHandler: permissionMiddleware(Permission.ORG_READ) },
+                    async (request: any, reply: any) => {
+                        const { db } = await import('./lib/database.js');
+                        const { redisClient } = await import('./lib/redis.js');
+                        const orgId = request.orgId;
+                        
+                        const result = await db.query(
+                            `SELECT 
+                                ip_address as ip, 
+                                MAX(geo_country) as country, 
+                                MAX(geo_city) as city, 
+                                MAX(created_at) as last_seen, 
+                                COUNT(*) as total_events, 
+                                MAX(risk_score) as rep_score
+                            FROM events 
+                            WHERE organization_id = $1 AND ip_address IS NOT NULL
+                            GROUP BY ip_address 
+                            ORDER BY last_seen DESC LIMIT 100`,
+                            [orgId]
+                        );
+                        
+                        const ips = await Promise.all(result.rows.map(async (row: any) => {
+                            const isBlocked = await redisClient.exists(`blocked:ip:${orgId}:${row.ip}`);
+                            return { ...row, is_blocked: isBlocked > 0 };
+                        }));
+                        
+                        return { data: ips };
+                    }
+                );
+
+                dashboard.post('/threat-map/block',
+                    { preHandler: permissionMiddleware(Permission.SETTINGS_MANAGE) },
+                    async (request: any, reply: any) => {
+                        const { redisClient } = await import('./lib/redis.js');
+                        const { ip } = request.body as any;
+                        if (!ip) return reply.code(400).send({ message: 'IP is required' });
+                        await redisClient.set(`blocked:ip:${request.orgId}:${ip}`, '1');
+                        return { success: true };
+                    }
+                );
+
+                dashboard.delete('/threat-map/block/:ip',
+                    { preHandler: permissionMiddleware(Permission.SETTINGS_MANAGE) },
+                    async (request: any, reply: any) => {
+                        const { redisClient } = await import('./lib/redis.js');
+                        const { ip } = request.params as any;
+                        await redisClient.del(`blocked:ip:${request.orgId}:${ip}`);
+                        return { success: true };
+                    }
+                );
+
+
                 dashboard.get('/dashboard/stats',
                     { preHandler: permissionMiddleware(Permission.ORG_READ) },
                     DashboardController.getMetrics
