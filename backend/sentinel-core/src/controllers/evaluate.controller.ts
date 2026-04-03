@@ -37,6 +37,21 @@ export class EvaluateController {
         const orgId = request.orgId;
         const entity = data.email || data.ip_address || 'unknown';
 
+        // 0. Enforce explicit IP blocklist BEFORE evaluation
+        if (data.ip_address) {
+            const isBlocked = await redisClient.exists(`blocked:ip:${orgId}:${data.ip_address}`);
+            if (isBlocked) {
+                const durationInMs = performance.now() - start;
+                return reply.code(200).send({
+                    action: 'block',
+                    risk_score: 1000,
+                    reason: 'Access denied — your IP has been blocked',
+                    latency_ms: Math.round(durationInMs),
+                    event_id: randomUUID()
+                });
+            }
+        }
+
         // 1. Build a synthetic event record for the engine
         const eventId = randomUUID();
         const detectionEvent: any = {

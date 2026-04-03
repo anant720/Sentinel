@@ -39,10 +39,16 @@ export class AuthController {
             await EventService.publish({
                 organization_id: '00000000-0000-0000-0000-000000000000', // Orphaned login attempt (Null UUID)
                 event_type: 'login_failed',
-                payload: { email },
+                payload: { email, ip: request.ip },
             });
             MetricsService.loginFailuresTotal.labels('user_not_found').inc();
             return reply.code(401).send({ error: 'Unauthorized', message: 'Invalid credentials' });
+        }
+
+        const { redisClient } = await import('../lib/redis.js');
+        const isBlocked = await redisClient.exists(`blocked:ip:${user.organization_id}:${request.ip}`);
+        if (isBlocked) {
+            return reply.code(403).send({ error: 'Forbidden', message: 'Access denied — your IP has been blocked' });
         }
 
         if (user.lockout_until && new Date(user.lockout_until) > new Date()) {

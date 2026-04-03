@@ -122,6 +122,23 @@ async function processEvent(job: Job<EventJob>): Promise<void> {
                 }
             });
 
+            // ── 7.5 Map Stream Broadcast (Geo) ──────────────────────────────
+            if (detectionEvent.payload.location && detectionEvent.payload.location.lat) {
+                const geoPayload = {
+                    type: detectionEvent.type,
+                    ip: detectionEvent.ip,
+                    lat: detectionEvent.payload.location.lat,
+                    lon: detectionEvent.payload.location.lon,
+                    city: detectionEvent.payload.location.city,
+                    country: detectionEvent.payload.location.country,
+                    country_code: detectionEvent.payload.location.countryCode,
+                    rep_score: detectionEvent.payload.location.abuseScore || riskScore || 0,
+                    is_threat: detectionEvent.payload.location.isThreat || severity === 'critical' || severity === 'high',
+                    timestamp: detectionEvent.timestamp
+                };
+                await redisClient.publish(`org:${orgId}:geo_events`, JSON.stringify({ type: 'live', data: geoPayload }));
+            }
+
             const durationInSeconds = (performance.now() - startTime) / 1000;
             MetricsService.workerJobDuration.labels('events', 'success').observe(durationInSeconds);
 

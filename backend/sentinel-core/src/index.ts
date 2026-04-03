@@ -109,6 +109,9 @@ export async function setupServer(fastify: FastifyInstance) {
         });
         await fastify.register(cookie);
         await fastify.register(jwt, getJwtConfig());
+        
+        const fastifyWebsocket = (await import('@fastify/websocket')).default;
+        await fastify.register(fastifyWebsocket);
 
         // ------------------------------------------------------------------
         // 2. Public & Health Routes (No global rate limit to ensure monitoring stays alive)

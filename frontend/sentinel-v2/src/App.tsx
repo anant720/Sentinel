@@ -12,6 +12,7 @@ import UsersPage from './features/users/pages/UsersPage';
 import DetectionLogicPage from './features/detection/pages/DetectionLogicPage';
 import SettingsPage from './features/settings/pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
+import { ThreatMapPage } from './features/threat-map/pages/ThreatMapPage';
 
 export default function App() {
   const { isAuthenticated } = useAuthStore();
@@ -31,6 +32,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="live-events" element={<LiveEventsPage />} />
+          <Route path="threat-map" element={<ThreatMapPage />} />
           <Route path="organizations" element={<OrganizationsPage />} />
           <Route path="identity" element={<UsersPage />} />
           <Route path="detection-logic" element={<DetectionLogicPage />} />

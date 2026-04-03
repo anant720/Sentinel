@@ -19,6 +19,8 @@ export interface GeoResult {
     lat: number;
     lon: number;
     isp: string;           // e.g. "Jio"
+    abuseScore?: number;   // 0-100 AbuseIPDB score
+    isThreat?: boolean;    // true if score > 50
 }
 
 // Private/reserved IP ranges to skip enrichment
@@ -67,6 +69,10 @@ export class GeoIPService {
                 lon: geo.ll[1],
                 isp: (geo as any).org || '',
             };
+            
+            // Enrich with AbuseIPDB if configured
+            await GeoIPService.enrichWithAbuseIPDB(ip, result);
+            
             cache.set(ip, result);
             return result;
         }
@@ -108,6 +114,9 @@ export class GeoIPService {
                         lon: data.lon || 0,
                         isp: data.isp || '',
                     };
+                    // Enrich with AbuseIPDB if configured
+                    await GeoIPService.enrichWithAbuseIPDB(ip, result);
+                    
                     cache.set(ip, result);
                     return result;
                 }
@@ -126,6 +135,45 @@ export class GeoIPService {
             cacheSize: cache.size,
             maxSize: MAX_CACHE_SIZE
         };
+    }
+
+    /**
+     * Enriches GeoResult with AbuseIPDB risk scoring if an API key is present.
+     */
+    static async enrichWithAbuseIPDB(ip: string, result: GeoResult): Promise<void> {
+        const apiKey = process.env.ABUSEIPDB_API_KEY;
+        if (!apiKey) {
+            result.abuseScore = 0;
+            result.isThreat = false;
+            return;
+        }
+
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 3000);
+
+            const r = await fetch(`https://api.abuseipdb.com/api/v2/check?ipAddress=${ip}&maxAgeInDays=90`, {
+                headers: {
+                    'Key': apiKey,
+                    'Accept': 'application/json'
+                },
+                signal: controller.signal
+            });
+            clearTimeout(timeout);
+
+            if (r.ok) {
+                const data = await r.json() as any;
+                if (data && data.data) {
+                    const score = data.data.abuseConfidenceScore || 0;
+                    result.abuseScore = score;
+                    result.isThreat = score > 50; 
+                }
+            }
+        } catch (e) {
+            // Silently swallow errors (timeout, no connection)
+            result.abuseScore = 0;
+            result.isThreat = false;
+        }
     }
 
     /**

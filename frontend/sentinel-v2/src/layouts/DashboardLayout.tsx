@@ -11,6 +11,7 @@ const NAV_GENERAL = [
   { label: 'Dashboard', icon: 'dashboard', path: '/' },
   { label: 'Security Alerts', icon: 'warning', path: '/alerts' },
   { label: 'Live Events', icon: 'event_note', path: '/live-events' },
+  { label: 'Threat Map', icon: 'public', path: '/threat-map' },
 ];
 const NAV_MANAGEMENT = [
   { label: 'Organizations', icon: 'corporate_fare', path: '/organizations' },
@@ -50,6 +51,7 @@ export default function DashboardLayout() {
     if (p === '/') return 'Command Center';
     if (p === '/alerts') return 'Security Alerts';
     if (p === '/live-events') return 'Live Events';
+    if (p === '/threat-map') return 'Threat Map';
     if (p === '/organizations') return 'Organizations';
     if (p === '/identity') return 'Identity';
     if (p === '/detection-logic') return 'Detection Logic';
