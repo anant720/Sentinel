@@ -1,56 +1,59 @@
-import { useEffect, useState, useRef } from 'react';
-import { Globe } from '../components/Globe';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { Globe, GeoEvent } from '../components/Globe';
 import { IpTable, IpRecord } from '../components/IpTable';
 import { useThreatMapStream, GeoEventPayload } from '../hooks/useThreatMapStream';
 import apiCore from '../../../lib/api';
 
-export function ThreatMapPage() {
-    const globeRef = useRef<{ addEvent: (lat: number, lon: number, isThreat: boolean) => void }>(null);
-    const [ips, setIps] = useState<IpRecord[]>([]);
+const MAX_EVENTS = 60;
 
-    // Fetch initial IP list from backend
+export function ThreatMapPage() {
+    const [ips, setIps]          = useState<IpRecord[]>([]);
+    const [geoEvents, setGeoEvents] = useState<GeoEvent[]>([]);
+    const eventCounter = useRef(0);
+
+    // ── Initial IP list ──────────────────────────────────────────────────
     useEffect(() => {
-        const fetchIps = async () => {
-            try {
-                const res = await apiCore.get<{ data: IpRecord[] }>('/threat-map/ips');
-                setIps(res.data.data);
-            } catch (err) {
-                console.error('Failed to load IPs', err);
-            }
-        };
-        fetchIps();
+        apiCore.get<{ data: IpRecord[] }>('/threat-map/ips')
+            .then(res => setIps(res.data.data))
+            .catch(err => console.error('Failed to load IPs', err));
     }, []);
 
-    // WebSocket hook drives live UI
-    const { isConnected } = useThreatMapStream((event: GeoEventPayload) => {
-        // Plot on Globe
-        if (globeRef.current) {
-            globeRef.current.addEvent(event.lat, event.lon, event.is_threat);
-        }
+    // ── Live event handler (WebSocket) ───────────────────────────────────
+    const handleEvent = useCallback((event: GeoEventPayload) => {
+        // Skip events with no valid location
+        if (!event.lat || !event.lon) return;
 
-        // Update IP Table
+        // Push to globe events list
+        setGeoEvents(prev => {
+            const next = [
+                { id: `ev-${eventCounter.current++}`, lat: event.lat, lon: event.lon, isThreat: event.is_threat, timestamp: Date.now() },
+                ...prev,
+            ].slice(0, MAX_EVENTS);
+            return next;
+        });
+
+        // Update IP table
         setIps(prev => {
             const existing = prev.find(i => i.ip === event.ip);
             if (existing) {
-                return prev.map(i => i.ip === event.ip ? { ...i, total_events: Number(i.total_events) + 1, last_seen: new Date().toISOString() } : i);
-            } else {
-                return [{
-                    ip: event.ip,
-                    country: event.country,
-                    city: event.city,
-                    last_seen: new Date().toISOString(),
-                    total_events: 1,
-                    rep_score: event.rep_score,
-                    is_blocked: false
-                }, ...prev].slice(0, 100); // Keep top 100
+                return prev.map(i => i.ip === event.ip
+                    ? { ...i, total_events: Number(i.total_events) + 1, last_seen: new Date().toISOString() }
+                    : i
+                );
             }
+            return [
+                { ip: event.ip, country: event.country, city: event.city, last_seen: new Date().toISOString(), total_events: 1, rep_score: event.rep_score, is_blocked: false },
+                ...prev,
+            ].slice(0, 100);
         });
-    });
+    }, []);
 
+    const { isConnected } = useThreatMapStream(handleEvent);
+
+    // ── Block / Unblock ───────────────────────────────────────────────────
     const handleBlockIp = async (ip: string) => {
         try {
             await apiCore.post('/threat-map/block', { ip });
-            alert(`IP ${ip} permanently blocked.`);
             setIps(prev => prev.map(i => i.ip === ip ? { ...i, is_blocked: true } : i));
         } catch (err: any) {
             alert(err.response?.data?.message || 'Failed to block IP');
@@ -60,7 +63,6 @@ export function ThreatMapPage() {
     const handleUnblockIp = async (ip: string) => {
         try {
             await apiCore.delete(`/threat-map/block/${ip}`);
-            alert(`IP ${ip} unblocked.`);
             setIps(prev => prev.map(i => i.ip === ip ? { ...i, is_blocked: false } : i));
         } catch (err: any) {
             alert(err.response?.data?.message || 'Failed to unblock IP');
@@ -69,6 +71,7 @@ export function ThreatMapPage() {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, height: '100%' }}>
+            {/* Header */}
             <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <div className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -84,36 +87,39 @@ export function ThreatMapPage() {
                         </div>
                     ) : (
                         <div className="badge badge-medium" style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.8 }}>
-                            <span className="material-icons" style={{ fontSize: 12 }}>sync</span> Connecting...
+                            <span className="material-icons" style={{ fontSize: 12 }}>sync</span> Connecting…
                         </div>
                     )}
                 </div>
             </div>
 
+            {/* Main content */}
             <div style={{ display: 'flex', gap: 24, flex: 1, minHeight: 0 }}>
-                {/* Visualizer Panel (Left) */}
-                <div style={{ 
-                    flex: 2, position: 'relative', background: '#020617', 
-                    borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(66,71,84,0.3)' 
+
+                {/* Globe Panel */}
+                <div style={{
+                    flex: 2, position: 'relative', background: '#020617',
+                    borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(66,71,84,0.3)',
                 }}>
+                    {/* Legend overlay */}
                     <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div className="badge" style={{ background: 'rgba(0,0,0,0.5)', borderColor: 'rgba(255,255,255,0.1)', color: 'var(--secondary)' }}>
+                        <div className="badge" style={{ background: 'rgba(0,0,0,0.55)', borderColor: 'rgba(255,255,255,0.1)', color: '#22c55e' }}>
                             <span className="material-icons" style={{ fontSize: 12, marginRight: 4 }}>fiber_manual_record</span> Safe Hit
                         </div>
-                        <div className="badge" style={{ background: 'rgba(0,0,0,0.5)', borderColor: 'rgba(255,255,255,0.1)', color: 'var(--error)' }}>
+                        <div className="badge" style={{ background: 'rgba(0,0,0,0.55)', borderColor: 'rgba(255,255,255,0.1)', color: '#ef4444' }}>
                             <span className="material-icons" style={{ fontSize: 12, marginRight: 4 }}>fiber_manual_record</span> Threat Blocked
                         </div>
+                        <div className="badge" style={{ background: 'rgba(0,0,0,0.55)', borderColor: 'rgba(255,255,255,0.1)', color: '#60a5fa' }}>
+                            <span className="material-icons" style={{ fontSize: 12, marginRight: 4 }}>adjust</span> Sentinel Server
+                        </div>
                     </div>
-                    <Globe ref={globeRef} />
+                    {/* Globe fills entire panel */}
+                    <Globe events={geoEvents} />
                 </div>
 
-                {/* Intelligence Panel (Right) */}
+                {/* IP Intelligence Panel */}
                 <div style={{ flex: 1, minWidth: 350 }}>
-                    <IpTable 
-                        ips={ips} 
-                        onBlockIp={handleBlockIp} 
-                        onUnblockIp={handleUnblockIp} 
-                    />
+                    <IpTable ips={ips} onBlockIp={handleBlockIp} onUnblockIp={handleUnblockIp} />
                 </div>
             </div>
         </div>
