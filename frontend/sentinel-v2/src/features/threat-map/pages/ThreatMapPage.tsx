@@ -11,10 +11,32 @@ export function ThreatMapPage() {
     const [geoEvents, setGeoEvents] = useState<GeoEvent[]>([]);
     const eventCounter = useRef(0);
 
-    // ── Initial IP list ──────────────────────────────────────────────────
+    // ── Initial IP list + seed globe with historical data ──────────────────
     useEffect(() => {
         apiCore.get<{ data: IpRecord[] }>('/threat-map/ips')
-            .then(res => setIps(res.data.data))
+            .then(res => {
+                const data = res.data.data;
+                setIps(data);
+
+                // Pre-populate globe with all IPs that have valid coordinates
+                const seedEvents: GeoEvent[] = data
+                    .filter(ip => ip.lat != null && ip.lon != null && ip.lat !== 0 && ip.lon !== 0)
+                    .map((ip, i) => ({
+                        id: `seed-${i}`,
+                        lat: Number(ip.lat),
+                        lon: Number(ip.lon),
+                        // Mark as threat if rep_score > 50
+                        isThreat: Number(ip.rep_score) > 50,
+                        // Stagger timestamps so they don't all disappear at once
+                        // Use a long lifespan: 60 seconds for historical dots
+                        timestamp: Date.now() - (i * 200),
+                    }));
+
+                if (seedEvents.length > 0) {
+                    setGeoEvents(seedEvents);
+                    eventCounter.current = seedEvents.length;
+                }
+            })
             .catch(err => console.error('Failed to load IPs', err));
     }, []);
 

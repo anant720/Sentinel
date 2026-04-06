@@ -15,8 +15,8 @@ interface GlobeProps {
 
 const SERVER_LAT = 1.3521;
 const SERVER_LON = 103.8198;
-const POINT_LIFESPAN = 8000;  // 8 s visible
-const ARC_LIFESPAN   = 4000;  // 4 s arc fade
+const POINT_LIFESPAN = 300_000; // 5 min — keeps historical/seeded dots visible
+const ARC_LIFESPAN   = 5_000;  // 5 s arc fade for live events
 
 // Texture served from our own public folder (no CDN dependency)
 const GLOBE_IMAGE_URL = '/earth-dark.jpg';

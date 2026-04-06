@@ -6,6 +6,8 @@ export interface IpRecord {
     total_events: string | number;
     rep_score: number;
     is_blocked: boolean;
+    lat?: number | null;
+    lon?: number | null;
 }
 
 interface IpTableProps {
