@@ -1,5 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
-import apiCore from '../../../lib/api';
+import { useEffect, useState, useRef, useCallback } from 'react';
 
 export interface GeoEventPayload {
     type: string;
@@ -14,65 +13,107 @@ export interface GeoEventPayload {
     timestamp: number;
 }
 
+const MAX_RETRIES = 5;
+const BASE_RETRY_DELAY_MS = 2000;
+
+function buildWsUrl(token: string): string {
+    // Priority 1: explicit env var pointing to the backend
+    const backendUrl = import.meta.env.VITE_BACKEND_URL as string | undefined;
+    if (backendUrl) {
+        const wsProto = backendUrl.startsWith('https') ? 'wss' : 'ws';
+        const host = backendUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        return `${wsProto}://${host}/threat-map/live?token=${token}`;
+    }
+    // Priority 2: same host as the page (works for local dev proxied setups)
+    const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${wsProto}://${window.location.host}/threat-map/live?token=${token}`;
+}
+
 export function useThreatMapStream(onEvent: (data: GeoEventPayload) => void) {
     const [isConnected, setIsConnected] = useState(false);
     const wsRef = useRef<WebSocket | null>(null);
+    const retryCount = useRef(0);
+    const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isMounted = useRef(true);
+    // Keep stable ref to callback so reconnects always use the latest version
+    const onEventRef = useRef(onEvent);
+    onEventRef.current = onEvent;
 
-    useEffect(() => {
-        // Construct WebSocket URL from standard API base UI
-        const apiBaseUrl = apiCore.defaults.baseURL || 'http://localhost:3001/api/v1';
-        // Replace http/https with ws/wss
-        const wsBaseUrl = apiBaseUrl.replace(/^http/, 'ws');
-        
+    const connect = useCallback(() => {
+        if (!isMounted.current) return;
+
         const token = localStorage.getItem('sentinel_jwt_token');
-        if (!token) return;
+        if (!token) {
+            console.warn('[ThreatMap] No JWT token found — WebSocket skipped.');
+            return;
+        }
 
-        // Base URL actually points to /api/v1, we need to go to root for fastify custom ws route, or append to base.
-        // Wait, in index.ts I added it to `fastify.get('/threat-map/live')`.
-        // The core index.ts mounts API routes under /api/v1 (let me check this assumption... actually it is mounted under /api/v1 probably, or the base URL is /api/v1 and fastify routes are at root).
-        // Let's assume the WebSocket route is exactly on the same base host.
-        const urlObj = new URL(apiBaseUrl);
-        const wsUrl = `${urlObj.protocol === 'https:' ? 'wss:' : 'ws:'}//${urlObj.host}/threat-map/live?token=${token}`;
+        const wsUrl = buildWsUrl(token);
+        console.log(`[ThreatMap] Connecting to ${wsUrl} (attempt ${retryCount.current + 1})`);
 
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {
+            if (!isMounted.current) return;
             console.log('[ThreatMap] WebSocket Connected');
             setIsConnected(true);
+            retryCount.current = 0; // reset backoff on success
         };
 
         ws.onmessage = (event) => {
             try {
                 const payload = JSON.parse(event.data);
                 if (payload.type === 'history' && Array.isArray(payload.data)) {
-                    // Bulk load history
                     payload.data.forEach((evt: any) => {
-                        // is_threat is heuristically decided by rep_score > 50 or engine severity
-                        onEvent({
+                        onEventRef.current({
                             ...evt,
-                            is_threat: evt.risk_score >= 80 || evt.rep_score > 50
+                            is_threat: evt.risk_score >= 80 || evt.rep_score > 50,
                         });
                     });
                 } else if (payload.type === 'live') {
-                    onEvent(payload.data);
+                    onEventRef.current(payload.data);
                 }
             } catch (err) {
                 console.error('[ThreatMap] Message parsing error', err);
             }
         };
 
-        ws.onclose = () => {
-            console.log('[ThreatMap] WebSocket Disconnected');
-            setIsConnected(false);
+        ws.onerror = (err) => {
+            console.error('[ThreatMap] WebSocket error', err);
         };
 
-        return () => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.close();
+        ws.onclose = (event) => {
+            if (!isMounted.current) return;
+            console.log(`[ThreatMap] WebSocket closed (code=${event.code})`);
+            setIsConnected(false);
+
+            // Don't retry on auth failures (1008 = Policy Violation / token invalid)
+            if (event.code === 1008 || event.code === 1000) return;
+
+            if (retryCount.current < MAX_RETRIES) {
+                const delay = BASE_RETRY_DELAY_MS * Math.pow(2, retryCount.current);
+                retryCount.current += 1;
+                console.log(`[ThreatMap] Retrying in ${delay}ms…`);
+                retryTimer.current = setTimeout(connect, delay);
+            } else {
+                console.warn('[ThreatMap] Max retries reached. Giving up.');
             }
         };
     }, []);
+
+    useEffect(() => {
+        isMounted.current = true;
+        connect();
+
+        return () => {
+            isMounted.current = false;
+            if (retryTimer.current) clearTimeout(retryTimer.current);
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.close(1000, 'Component unmounted');
+            }
+        };
+    }, [connect]);
 
     return { isConnected };
 }

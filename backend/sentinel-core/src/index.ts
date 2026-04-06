@@ -48,9 +48,9 @@ export async function setupServer(fastify: FastifyInstance) {
                     scriptSrc: ["'self'"],
                     styleSrc: ["'self'", "'unsafe-inline'"],
                     imgSrc: ["'self'", "data:"],
-                    connectSrc: config.isProd 
-                        ? ["'self'", 'https://*.vercel.app']
-                        : ["'self'"],
+                    connectSrc: config.isProd
+                        ? ["'self'", 'https://*.vercel.app', 'wss://*.onrender.com', 'wss://*.railway.app', 'wss://*.upstash.io', 'https://*.onrender.com']
+                        : ["'self'", 'ws://localhost:*', 'wss://localhost:*'],
                     fontSrc: ["'self'"],
                     objectSrc: ["'none'"],
                     mediaSrc: ["'none'"],
