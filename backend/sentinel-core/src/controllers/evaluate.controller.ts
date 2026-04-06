@@ -52,11 +52,31 @@ export class EvaluateController {
             }
         }
 
+        // 0.5 Geo-enrich (necessary for inline Impossible Travel & VPN detection)
+        const { GeoIPService } = await import('../services/geoip.service.js');
+        const resolvedIp = data.ip_address || '';
+        const geoLookup = resolvedIp ? await GeoIPService.lookup(resolvedIp) : null;
+        
+        let geoExt = {};
+        if (geoLookup) {
+            geoExt = {
+                lat: geoLookup.lat,
+                lon: geoLookup.lon,
+                city: geoLookup.city,
+                country: geoLookup.country,
+                countryCode: geoLookup.countryCode,
+                isp: geoLookup.isp,
+                abuseScore: geoLookup.abuseScore,
+                isThreat: geoLookup.isThreat
+            };
+        }
+
         // 1. Build a synthetic event record for the engine
         const eventId = randomUUID();
         const detectionEvent: any = {
             id: eventId,
             type: data.event_type,
+            event_type: data.event_type, // CRITICAL FIX: The engine looks for event.event_type!
             timestamp: Date.now(),
             ...(data.ip_address && { ip: data.ip_address }),
             ...(data.email && { email: data.email }),
@@ -67,7 +87,8 @@ export class EvaluateController {
                 ip_address: data.ip_address,
                 email: data.email,
                 device_id: data.device_id,
-                user_agent: data.user_agent
+                user_agent: data.user_agent,
+                ...(geoLookup && { geo: geoExt }) // Inject geo into inline payload
             }
         };
 

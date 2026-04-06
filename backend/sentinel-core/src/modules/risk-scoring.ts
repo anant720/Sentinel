@@ -61,8 +61,8 @@ class RiskScoringModule implements DetectionModule {
             'suspicious_http_request':    +30,
             'distributed_login':          +65,
             'rapid_failed_logins':        +50,
-            'rapid_failed_logins_ip':     +45,
-            'password_spraying':          +70,
+            'rapid_failed_logins_ip':     +85, // Instant critical block threshold to prevent ID-hopping
+            'password_spraying':          +85,
             
             // Identity compromise signals
             'impossible_travel':          +75,
@@ -71,6 +71,8 @@ class RiskScoringModule implements DetectionModule {
             'enrollment_token_abuse':     +60,
             'fingerprint_campaign':       +55,
             'device_anomaly_burst':       +45,
+            'vpn_datacenter_login':       +35, // Penalize anonymous infrastructures
+
 
             // Integrity violations
             'signature_failure':          +35,

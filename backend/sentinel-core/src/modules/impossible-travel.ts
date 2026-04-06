@@ -74,8 +74,9 @@ class ImpossibleTravelModule implements DetectionModule {
             const timeDiffMs    = currentTs - lastLoc.timestamp;
             const timeDiffHours = timeDiffMs / 3600000;
 
-            // Skip non-sequential events or events too far apart (72h)
-            if (timeDiffMs < 30000 || timeDiffHours > 72) return;
+            // Skip identical events (same millisecond), but DO NOT skip valid consecutive events 
+            // under 30s because attackers switch VPNs rapidly.
+            if (timeDiffMs < 1000 || timeDiffHours > 72) return;
 
             const distanceKm = haversineKm(currentLat, currentLon, lastLoc.lat, lastLoc.lon);
 

@@ -8,6 +8,7 @@ export interface IpRecord {
     is_blocked: boolean;
     lat?: number | null;
     lon?: number | null;
+    isp?: string | null;
 }
 
 interface IpTableProps {
@@ -31,59 +32,71 @@ export function IpTable({ ips, onBlockIp, onUnblockIp }: IpTableProps) {
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {ips.map((row) => (
-                            <div
-                                key={row.ip}
-                                style={{
-                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                    padding: '12px 16px', borderRadius: 6,
-                                    background: 'var(--surface-container-low)',
-                                    border: '1px solid rgba(66,71,84,0.15)'
-                                }}
-                            >
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span className="mono" style={{ fontSize: '0.8125rem', color: 'var(--on-surface)', fontWeight: 600 }}>
-                                            {row.ip}
-                                        </span>
-                                        {row.rep_score > 50 ? (
-                                            <span className="badge badge-critical" style={{ fontSize: '0.625rem', padding: '2px 6px' }}>
-                                                Score: {row.rep_score}
+                        {ips.map((row) => {
+                            const isVpn = row.isp && /vpn|proxy|tor|digitalocean|aws|amazon|linode|ovh|choopa|m247/i.test(row.isp);
+                            
+                            return (
+                                <div
+                                    key={row.ip}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        padding: '12px 16px', borderRadius: 6,
+                                        background: 'var(--surface-container-low)',
+                                        border: '1px solid rgba(66,71,84,0.15)'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <span className="mono" style={{ fontSize: '0.8125rem', color: 'var(--on-surface)', fontWeight: 600 }}>
+                                                {row.ip}
                                             </span>
+                                            {isVpn && (
+                                                <span title={`ISP: ${row.isp}`} style={{ 
+                                                    fontSize: '0.65rem', padding: '1px 5px', borderRadius: 4, 
+                                                    background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', 
+                                                    fontWeight: 700, border: '1px solid rgba(239, 68, 68, 0.3)'
+                                                }}>VPN</span>
+                                            )}
+                                            {row.rep_score > 50 ? (
+                                                <span className="badge badge-critical" style={{ fontSize: '0.625rem', padding: '2px 6px' }}>
+                                                    Score: {row.rep_score}
+                                                </span>
+                                            ) : (
+                                                <span className="badge badge-low" style={{ fontSize: '0.625rem', padding: '2px 6px' }}>
+                                                    Score: {row.rep_score}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-dim mono" style={{ fontSize: '0.6875rem' }}>
+                                            {row.city || 'Unknown'}, {row.country || 'Unknown'} 
+                                            <span style={{ margin: '0 6px', opacity: 0.5 }}>•</span> 
+                                            {row.total_events} events
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        {row.is_blocked ? (
+                                            <button
+                                                className="btn btn-sm"
+                                                style={{ borderColor: 'var(--secondary)', color: 'var(--secondary)' }}
+                                                onClick={() => onUnblockIp(row.ip)}
+                                            >
+                                                Unblock
+                                            </button>
                                         ) : (
-                                            <span className="badge badge-low" style={{ fontSize: '0.625rem', padding: '2px 6px' }}>
-                                                Score: {row.rep_score}
-                                            </span>
+                                            <button
+                                                className="btn btn-sm"
+                                                style={{ borderColor: 'var(--error)', color: 'var(--error)' }}
+                                                onClick={() => onBlockIp(row.ip)}
+                                            >
+                                                <span className="material-icons" style={{ fontSize: 14, marginRight: 4 }}>block</span>
+                                                Block
+                                            </button>
                                         )}
                                     </div>
-                                    <div className="text-dim mono" style={{ fontSize: '0.6875rem' }}>
-                                        {row.city || 'Unknown'}, {row.country || 'Unknown'} 
-                                        <span style={{ margin: '0 6px', opacity: 0.5 }}>•</span> 
-                                        {row.total_events} events
-                                    </div>
                                 </div>
-                                <div>
-                                    {row.is_blocked ? (
-                                        <button
-                                            className="btn btn-sm"
-                                            style={{ borderColor: 'var(--secondary)', color: 'var(--secondary)' }}
-                                            onClick={() => onUnblockIp(row.ip)}
-                                        >
-                                            Unblock
-                                        </button>
-                                    ) : (
-                                        <button
-                                            className="btn btn-sm"
-                                            style={{ borderColor: 'var(--error)', color: 'var(--error)' }}
-                                            onClick={() => onBlockIp(row.ip)}
-                                        >
-                                            <span className="material-icons" style={{ fontSize: 14, marginRight: 4 }}>block</span>
-                                            Block
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

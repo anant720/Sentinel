@@ -663,6 +663,7 @@ export async function setupServer(fastify: FastifyInstance) {
                                 MAX(created_at) as last_seen, 
                                 COUNT(*) as total_events, 
                                 MAX(risk_score) as rep_score,
+                                MAX(geo_isp) as isp,
                                 AVG(geo_lat::numeric) FILTER (WHERE geo_lat IS NOT NULL) as lat,
                                 AVG(geo_lon::numeric) FILTER (WHERE geo_lon IS NOT NULL) as lon
                             FROM events 
